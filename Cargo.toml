@@ -1,0 +1,9 @@
+[package]
+name = "sliderule_impl"
+version = "0.1.0"
+authors = ["Jeremy Wright <wrightjmf@gmail.com>"]
+
+[dependencies]
+os_info = "1.0.3"
+walkdir = "2.2.5"
+liquid = "0.17"
