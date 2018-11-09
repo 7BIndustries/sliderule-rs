@@ -15,22 +15,18 @@ pub mod sliderule {
     * Create a new Sliderule component or convert an existing project to being a Sliderule project.
     */
     pub fn create_component(name: &String, src_license: &String, docs_license: &String) {
-        let mut source_license = String::new();
-        let mut doc_license = String::new();
-
-        // Check to see if the current directory is a component
-        let is_component = Path::new("components").exists() && Path::new("bom_data.yaml").exists();
+        let source_license: String;
+        let doc_license: String;
 
         // The path can either lead to a top level component (project), or a component nested within a project
-        let mut component_dir = Path::new("components").join(name);
+        let component_dir: PathBuf;
 
         // This is a top level component (project)
-        if !is_component {
-            component_dir = Path::new(name).to_path_buf();
+        if Path::new(".sr").exists() {
+            component_dir = PathBuf::from("components").join(name);
         }
         else {
-            source_license = get_license(true);
-            doc_license = get_license(false);
+            component_dir = PathBuf::from(name);
         }
 
         // Create a directory for our component
@@ -107,54 +103,30 @@ pub mod sliderule {
         // Generate bom_data.yaml
         generate_bom(&name);
 
-        // If we're creating a top-level component we want ot ask for a license directly, otherwise get it from the parent component
-        if !is_component {
-            // Ask the user for their license choice for the source of this component if they haven't specified it on the command line
-            if src_license.is_empty() {
-                println!("Please choose a source license for this component.");
-                println!("For a list of available licenses see https://spdx.org/licenses/");
-                println!("Choice [Unlicense]:");
-                io::stdin().read_line(&mut source_license)
-                    .expect("ERROR: Failed to read name or license from user.");
+        // Ask the user for their license choice for the source of this component if they haven't specified it on the command line
+        let licenses = get_licenses();
 
-                // If the user didn't choose a license, default to The Unlicense
-                source_license = source_license.trim().to_string();
-                if source_license.is_empty() {
-                    source_license = String::from("Unlicense");
-                }
-            }
-            else {
-                source_license = src_license.to_string();
-            }
+        // See if the source license was supplied in a command line argument
+        if src_license.is_empty() {
+            source_license = licenses.0;
+        }
+        else {
+            source_license = src_license.to_string();
+        }
 
-            if docs_license.is_empty() {
-                // Ask the user for their license choice for the documentation of this component
-                println!("Please choose a documentation license for this component.");
-                println!("For a list of available licenses see https://spdx.org/licenses/");
-                println!("Choice [CC-BY-4.0]:");
-                io::stdin().read_line(&mut doc_license)
-                    .expect("ERROR: Failed to read name or license from user.");
-
-                // If the user didn't choose a license, default to The Unlicense
-                doc_license = doc_license.trim().to_string();
-                if doc_license.is_empty() {
-                    doc_license = String::from("CC-BY-4.0");
-                }
-            }
-            else {
-                doc_license = docs_license.to_string();
-            }
+        // See if the documentation license was supplied in a command line argument
+        if docs_license.is_empty() {
+            doc_license = licenses.1;
+        }
+        else {
+            doc_license = docs_license.to_string();
         }
 
         // Generate package.json, if needed
         generate_package_json(&name, &source_license);
 
         // Generate the .sr file that provides extra information about this component
-        let mut is_top = false;
-        if !is_component {
-            is_top = true;
-        }
-        generate_dot_file(is_top, &source_license, &doc_license);
+        generate_dot_file(&source_license, &doc_license);
 
         println!("Finished setting up component.");
     }
@@ -234,21 +206,6 @@ pub mod sliderule {
     * Removes a component from the project structure.
     */
     pub fn remove(name: &str) {
-        // let mut answer = String::new();
-
-        // TODO: The user has to spell the component name out, so maybe that's enough of a safety check?
-        // println!("Type Y/y and hit enter to continue removing this component: {}", name);
-
-        // io::stdin().read_line(&mut answer)
-        //     .expect("ERROR: Failed to read answer from user.");
-
-        // Make sure that the answer was really yes on removal of the component
-        // if &answer.trim().to_uppercase() != "Y" {
-        //     println!("Aborting component removal.");
-
-        //     return;
-        // }
-
         let component_dir = Path::new("components").join(name);
 
         // If the component exists as a subdirectory of components delete the directory directly otherwise use npm to remove it.
@@ -280,6 +237,16 @@ pub mod sliderule {
         }
 
         println!("{} component removed.", name);
+    }
+
+    /*
+     * Allows the user to change the source and/or documentation licenses for the project.
+     */
+    pub fn change_licenses(source_license: &String, doc_license: &String) {
+        let cwd = get_cwd().join(".sr");
+
+        update_yaml_value(&cwd, "source_license", source_license);
+        update_yaml_value(&cwd, "documentation_license", doc_license);
     }
 
     /*
@@ -416,11 +383,10 @@ pub mod sliderule {
     /*
     * Generates the dot file that tracks whether this is a top level component/project or a sub-component
     */
-    fn generate_dot_file(is_top: bool, source_license: &str, doc_license: &str) {
-        if !Path::new(".top").exists() {
+    fn generate_dot_file(source_license: &str, doc_license: &str) {
+        if !Path::new(".sr").exists() {
             // Add the things that need to be put substituted into the .top file (none at this time)
             let mut globals = liquid::value::Object::new();
-            globals.insert("is_top".into(), liquid::value::Value::scalar(is_top.to_owned()));
             globals.insert("source_license".into(), liquid::value::Value::scalar(source_license.to_owned()));
             globals.insert("doc_license".into(), liquid::value::Value::scalar(doc_license.to_owned()));
 
@@ -476,6 +442,117 @@ pub mod sliderule {
         output
     }
 
+    /*
+     * Extracts the source and documentation licenses from a component's .sr file.
+     */
+    pub fn get_licenses() -> (String, String) {
+        let sr_file: PathBuf;
+
+        // We can hand back the default licenses, if nothing else
+        let mut source_license = String::from("Unlicense");
+        let mut doc_license = String::from("CC-BY-4.0");
+
+        // If we're in a component directory, pull the license info from that
+        sr_file = get_cwd().join(".sr");
+
+        // Safety check to make sure the file exists
+        if sr_file.exists() {
+            println!("Attempting to extract license from {}", sr_file.display());
+
+            // Extract the licenses from the file
+            source_license = get_yaml_value(&sr_file, "source_license");
+            doc_license = get_yaml_value(&sr_file, "documentation_license");
+        }
+
+        (source_license, doc_license)
+    }
+
+    /*
+     * Extracts a value from a yaml file based on a string key.
+     */
+    fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
+        let mut value = String::new();
+
+        // If the file doesn't exist, we can't do anything
+        if yaml_file.exists() {
+            println!("Attempting to get value from {} for key {}", yaml_file.display(), key);
+
+            // Open the file for reading
+            let mut file = match fs::File::open(&yaml_file) {
+                Ok(file) => file,
+                Err(e) => {
+                    panic!("Error opening yaml file: {}", e);
+                }
+            };
+
+            // Attempt to read the contents of the component's .sr file
+            let mut contents = String::new();
+            file.read_to_string(&mut contents).expect("ERROR: Unable to read the yaml file for this component");
+
+            let lines = contents.split("\n");
+            for line in lines {
+                // Make sure that we're extracting the proper license at the proper time
+                if line.contains(&key) {
+                    let part: Vec<&str> = line.split(":").collect();
+                    value = String::from(part[1].replace(",", "").trim());
+                }
+            }
+        }
+        else {
+            panic!("yaml file {} not found, cannot extract data from it.", yaml_file.display());
+        }
+
+        value
+    }
+
+    /*
+     * Replaces the value corresponding to a key in a yaml file
+     */
+    fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
+        if yaml_file.exists() {
+            println!("Attempting to update value for {} in {}.", yaml_file.display(), key);
+
+            // Open the file for reading
+            let mut file = match fs::File::open(&yaml_file) {
+                Ok(file) => file,
+                Err(e) => {
+                    panic!("Error opening yaml file: {}", e);
+                }
+            };
+
+            // Attempt to read the contents of the component's .sr file
+            let mut contents = String::new();
+            let mut new_contents = String::new();
+            file.read_to_string(&mut contents).expect("ERROR: Unable to read the yaml file for this component");
+
+            let lines = contents.split("\n");
+            for line in lines {
+                // Make sure that we're extracting the proper license at the proper time
+                if line.contains(&key) {
+                    // Grab the original value
+                    let part: Vec<&str> = line.split(":").collect();
+                    let old_value = String::from(part[1].replace(",", "").trim());
+
+                    // Scope the change to matching line and replace the original line with the new one
+                    let new_line = line.replace(&old_value, &value);
+                    new_contents = contents.replace(line, &new_line);
+                }
+            }
+
+            // Make sure there's a change to write
+            if !new_contents.is_empty() {
+                // Try to write the contents back to the file
+                match fs::write(yaml_file, new_contents) {
+                    Ok(_) => {
+                        println!("Updated yaml file with new content.");
+                    },
+                    Err(e) => {
+                        panic!("Could not write to yaml file: {}", e);
+                    }
+                };
+            }
+        }
+    }
 
     /*
     * Gets the current working directory for us, and handles any errors.
@@ -493,45 +570,47 @@ pub mod sliderule {
         cwd
     }
 
+    // Gets the parent directory of the current component
+    fn get_parent_dir() -> PathBuf {
+        // Get the current directory
+        let cur_dir = get_cwd();
+
+        // Get the parent directory of this component's directory
+        let parent_dir = match cur_dir.parent() {
+            Some(path) => path,
+            None => panic!("Could not get the parent directory of the current component.")
+        };
+
+        parent_dir.to_path_buf()
+    }
 
     /*
-    * Attempts to extract the license from the package.json file in the current directory.
-    */
-    fn get_license(is_top: bool) -> String {
-        let mut license = String::new();
-        let sr_file = Path::new(".sr");
+     * Figures out what depth the component is at.
+     * 0 = A top level component is probably being created
+     * 1 = A top level component with no parent
+     * 2 = A sub-component at depth n
+     */
+    pub fn get_level() -> u8 {
+        let level: u8;
 
-        println!("Attempting to extract license from package.json.");
+        // Allows us to check if there is a .sr file in the current directory
+        let current_file = get_cwd().join(".sr");
+    
+        // Allows us to check if there is a .sr file in the parent directory
+        let parent_file = get_parent_dir().join(".sr");
 
-        // Attempt to read the contents of package.json
-        let mut file = fs::File::open(&sr_file).expect("ERROR: Unable to open the file");
-        let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("ERROR: Unable to read the file");
-
-        // Make sure that there's a license entry in the package.json file for us to extract
-        if !contents.contains("license") {
-            panic!("ERROR: No package.json file to extract the license from.");
+        // If the parent directory contains a .sr file, we have a subcomponent, if not we have a top level component
+        if !parent_file.exists() && !current_file.exists() {
+            level = 0;
+        }
+        else if !parent_file.exists() && current_file.exists() {
+            level = 1;
+        }
+        else {
+            level = 2;
         }
 
-        // Step through all the lines and attempt to find the license entry
-        let lines = contents.split("\n");
-        for line in lines {
-            // Make sure that we're extracting the proper license at the proper time
-            if line.contains("source_license") && !is_top {
-                continue;
-            }
-            else if line.contains("documentation_license") && is_top {
-                continue;
-            }
-
-            if line.contains("source_license") || line.contains("documentation_license") {
-                let part: Vec<&str> = line.split(":").collect();
-                license = String::from(part[1].replace("\"", "").trim());
-                license = license.replace(",", "");
-            }
-        }
-
-        license
+        level
     }
 }
 
