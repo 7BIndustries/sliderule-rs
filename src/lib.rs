@@ -30,29 +30,17 @@ pub mod sliderule {
         }
 
         // Create a directory for our component
-        match fs::create_dir(&component_dir) {
-            Ok(dir) => dir,
-            Err(error) => {
-                panic!("ERROR: Could not create dist directory: {:?}", error);
-            }
-        };
+        fs::create_dir(&component_dir)
+            .expect("Could not create dist directory.");
 
         // Make a new directory in components, cd into it, and then run the rest of this code
-        match env::set_current_dir(&component_dir) {
-            Ok(dir) => dir,
-            Err(e) => {
-                panic!("ERROR: Could not change into components directory: {}", e);
-            }
-        };
+        env::set_current_dir(&component_dir)
+            .expect("Could not change into components directory.");
 
         // Create the components directory, if needed
         if !Path::new("components").exists() {
-            match fs::create_dir("components") {
-                Ok(dir) => dir,
-                Err(error) => {
-                    panic!("ERROR: Could not create components directory: {:?}", error);
-                }
-            };
+            fs::create_dir("components")
+                .expect("Could not create components directory.");
         }
         else {
             println!("components directory already exists, using existing directory.");
@@ -60,12 +48,8 @@ pub mod sliderule {
 
         // Create the dist directory, if needed
         if !Path::new("dist").exists() {
-            match fs::create_dir("dist") {
-                Ok(dir) => dir,
-                Err(error) => {
-                    panic!("ERROR: Could not create dist directory: {:?}", error);
-                }
-            };
+            fs::create_dir("dist")
+                .expect("Could not create dist directory.");
         }
         else {
             println!("dist directory already exists, using existing directory.");
@@ -73,12 +57,8 @@ pub mod sliderule {
 
         // Create the docs directory, if needed
         if !Path::new("docs").exists() {
-            match fs::create_dir("docs") {
-                Ok(dir) => dir,
-                Err(error) => {
-                    panic!("ERROR: Could not create docs directory: {:?}", error);
-                }
-            };
+            fs::create_dir("docs")
+                .expect("Could not create docs directory.");
         }
         else {
             println!("docs directory already exists, using existing directory.");
@@ -86,12 +66,8 @@ pub mod sliderule {
 
         //Create the source directory, if needed
         if !Path::new("source").exists() {
-            match fs::create_dir("source") {
-                Ok(dir) => dir,
-                Err(error) => {
-                    panic!("ERROR: Could not create source directory: {:?}", error);
-                }
-            };
+            fs::create_dir("source")
+                .expect("Could not create source directory.");
         }
         else {
             println!("source directory already exists, using existing directory.");
@@ -128,6 +104,9 @@ pub mod sliderule {
         // Generate the .sr file that provides extra information about this component
         generate_dot_file(&source_license, &doc_license);
 
+        // Make sure that our package.json file is updated with all the license info
+        amalgamate_licenses();
+
         println!("Finished setting up component.");
     }
 
@@ -135,8 +114,11 @@ pub mod sliderule {
     /*
      * Uploads any changes to the project to the remote repository.
      */
-    pub fn project_upload() {
+    pub fn upload_project() {
         let mut url = String::new();
+
+        // Make sure that our package.json file is updated with all the license info
+        amalgamate_licenses();
 
         // Make sure this project has already been initialized as a repository
         if !Path::new(".git").exists() {
@@ -173,24 +155,16 @@ pub mod sliderule {
 
         if component_dir.exists() {
             // We need to be in the component's directory before running the next commands
-            match env::set_current_dir(&component_dir) {
-                Ok(dir) => dir,
-                Err(e) => {
-                    panic!("ERROR: Could not change into components directory: {}", e);
-                }
-            };
+            env::set_current_dir(&component_dir)
+                .expect("Could not change into components directory.");
 
             // Set the directory up as a git repo and then push the changes to the remote
             git_sr::git_init(&url.trim());
             git_sr::git_add_and_commit();
 
             // Change back up to the original, top level directory
-            match env::set_current_dir(&orig_dir) {
-                Ok(dir) => dir,
-                Err(e) => {
-                    panic!("ERROR: Could not change into original parent directory: {}", e);
-                }
-            };
+            env::set_current_dir(&orig_dir)
+                .expect("Could not change into original parent directory.");
 
             // Remove the local component and then install it from the remote using npm
             remove(&name);
@@ -214,10 +188,8 @@ pub mod sliderule {
 
             // Step through every file and directory in the path to be deleted and make sure that none are read-only
             for entry in walkdir::WalkDir::new(&component_dir) {
-                let entry = match entry {
-                    Ok(ent) => ent,
-                    Err(e) => panic!("ERROR: Could not handle entry while walking components directory tree: {}", e)
-                };
+                let entry = entry
+                    .expect("Could not handle entry while walking components directory tree.");
 
                 // Remove read-only permissions on every entry
                 let md = &entry.path().metadata().
@@ -247,6 +219,9 @@ pub mod sliderule {
 
         update_yaml_value(&cwd, "source_license", source_license);
         update_yaml_value(&cwd, "documentation_license", doc_license);
+
+        // Make sure our new licenses are up to date in package.json
+        amalgamate_licenses();
     }
 
     /*
@@ -254,6 +229,9 @@ pub mod sliderule {
      */
     pub fn add_remote_component(url: &str) {
         npm_sr::npm_install(&url);
+
+        // Make sure that our package.json file is updated with all the license info
+        amalgamate_licenses();
     }
 
     /*
@@ -292,12 +270,8 @@ pub mod sliderule {
             let contents = render_template("README.md.liquid", &mut globals);
 
             // Write the template text into the readme file
-            match fs::write("README.md", contents) {
-                Ok(res) => res,
-                Err(error) => {
-                    panic!("ERROR: Could not write to README.md file: {:?}", error);
-                } 
-            };
+            fs::write("README.md", contents)
+                .expect("Could not write to README.md file.");
         }
         else {
             println!("README.md already exists, using existing file and refusing to overwrite.");
@@ -317,12 +291,8 @@ pub mod sliderule {
             let contents = render_template("bom_data.yaml.liquid", &mut globals);
 
             // Write the template text into the readme file
-            match fs::write("bom_data.yaml", contents) {
-                Ok(res) => res,
-                Err(error) => {
-                    panic!("ERROR: Could not write to bom_data.yaml: {:?}", error);
-                } 
-            };
+            fs::write("bom_data.yaml", contents)
+                .expect("Could not write to bom_data.yaml.");
         }
         else {
             println!("bom_data.yaml already exists, using existing file and refusing to overwrite.");
@@ -343,12 +313,8 @@ pub mod sliderule {
             let contents = render_template("package.json.liquid", &mut globals);
 
             // Write the contents into the file
-            match fs::write("package.json", contents) {
-                Ok(res) => res,
-                Err(error) => {
-                    panic!("ERROR: Could not write to package.json: {:?}", error);
-                }
-            };
+            fs::write("package.json", contents)
+                .expect("Could not write to package.json.");
         }
         else {
             println!("package.json already exists, using existing file and refusing to overwrite.");
@@ -367,12 +333,8 @@ pub mod sliderule {
             let contents = render_template(".gitignore.liquid", &mut globals);
 
             // Write the contents to the file
-            match fs::write(".gitignore", contents) {
-                Ok(res) => res,
-                Err(error) => {
-                    panic!("ERROR: Could not write to .gitignore: {:?}", error);
-                }
-            };
+            fs::write(".gitignore", contents)
+                .expect("Could not write to .gitignore.");
         }
         else {
             println!(".gitignore already exists, using existing file and refusing to overwrite.");
@@ -393,12 +355,8 @@ pub mod sliderule {
             let contents = render_template(".sr.liquid", &mut globals);
 
             // Write the contents to the file
-            match fs::write(".sr", contents) {
-                Ok(res) => res,
-                Err(error) => {
-                    panic!("ERROR: Could not write to .top: {:?}", error);
-                }
-            };
+            fs::write(".sr", contents)
+                .expect("Could not write to .sr file.");
         }
         else {
             println!(".sr already exists, using existing file and refusing to overwrite.");
@@ -411,14 +369,12 @@ pub mod sliderule {
     */
     fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> String {
         // Figure out where the templates are stored
-        let template_file = match env::current_exe() {
-            Ok(path) => path,
-            Err(e) => panic!("ERROR: Could not get sliderule-cli executable directory: {}", e)
-        };
-        let template_file = match template_file.parent() {
-            Some(path) => path,
-            None => panic!("ERROR: Could not get parent of sliderule-cli executable directory.")
-        };
+        let template_file = env::current_exe()
+            .expect("Could not get sliderule-cli executable directory.");
+
+        let template_file = template_file.parent()
+            .expect("Could not get parent of sliderule-cli executable directory.");
+
         let template_file = template_file.join("templates").join(template_name);
 
         // Read the template file into a string so that it can be rendered using Liquid
@@ -427,17 +383,13 @@ pub mod sliderule {
         file.read_to_string(&mut contents).expect("Unable to read the file");
 
         // Render the output of the template using Liquid
-        let template = match liquid::ParserBuilder::with_liquid()
+        let template = liquid::ParserBuilder::with_liquid()
             .build()
-            .parse(&contents) {
-                Ok(temp) => temp,
-                Err(e) => panic!("ERROR: Could not parse template using Liquid: {}", e)
-            };
+            .parse(&contents)
+                .expect("Could not parse template using Liquid.");
 
-        let output = match template.render(globals) {
-            Ok(out) => out,
-            Err(e) => panic!("ERROR: Could not render template using Liquid: {}", e)
-        };
+        let output = template.render(globals)
+            .expect("Could not render template using Liquid.");
 
         output
     }
@@ -468,6 +420,146 @@ pub mod sliderule {
     }
 
     /*
+     * Walk the directory structure of the current component and combine the licenses per the SPDX naming conventions.
+     */
+    fn amalgamate_licenses() {
+        let mut license_str = String::new();
+        let mut source_licenses: Vec<String> = Vec::new();
+        let mut doc_licenses: Vec<String> = Vec::new();
+
+        let cur_dir = get_cwd();
+
+        // Walk through every sub-directory in this component, looking for .sr files
+        for entry in walkdir::WalkDir::new(&cur_dir) {
+            let entry = entry
+                .expect("Could not handle entry while walking components directory tree.");
+
+            // If we have a .sr file, keep it for later license extraction
+            if entry.path().ends_with(".sr") {
+                // We want the licenses from our current dot files
+                let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
+                let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
+
+                // Keep track of the license strings, avoiding duplicates
+                if !source_licenses.contains(&source_value) {
+                    source_licenses.push(source_value);
+                }
+                if !doc_licenses.contains(&doc_value) {
+                    doc_licenses.push(doc_value);
+                }
+            }
+        }
+
+        // We talked the directories in a way that the entries will be in reverse order
+        source_licenses.reverse();
+        doc_licenses.reverse();
+
+        // Step through all of the source licenses and append them to the license string
+        let mut i = 0;
+        for lic in source_licenses {
+            // Make sure that the list is AND-concatenated
+            if i > 0 {
+                license_str.push_str(" AND ")
+            }
+
+            license_str.push_str(&lic);
+
+            i = i + 1;
+        }
+
+        // Make sure that there's an AND concatenation after the source license
+        if doc_licenses.len() > 0 && i > 0 {
+            license_str.push_str(" AND ");
+        }
+
+        // Step through all of the documentation licenses and append them to the license string
+        let mut j = 0;
+        for lic in doc_licenses {
+            // Make sure that the list is AND-concatenated
+            if j > 0 {
+                license_str.push_str(" AND ");
+            }
+
+            license_str.push_str(&lic);
+
+            j = j + 1;
+        }
+
+        update_json_value(&cur_dir.join("package.json"), "license", &license_str);
+    }
+
+    /*
+     * Extracts a value from a JSON file based on a string key.
+     */
+    // fn get_json_value(json_file: &PathBuf, key: &str) -> String {
+    //     let mut value = String::new();
+
+    //     // If the file doesn't exist, we can't do anything
+    //     if json_file.exists() {
+    //         // Open the file for reading
+    //         let mut file = fs::File::open(&json_file)
+    //             .expect("Error opening JSON file.");
+
+    //         // Attempt to read the contents of the file
+    //         let mut contents = String::new();
+    //         file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
+
+    //         let lines = contents.split("\n");
+    //         for line in lines {
+    //             // Make sure that we're extracting the proper license at the proper time
+    //             if line.contains(&key) {
+    //                 let part: Vec<&str> = line.split(":").collect();
+    //                 value = part[1].replace("\"", "").replace(",", "").trim().to_string();
+    //             }
+    //         }
+    //     }
+    //     else {
+    //         panic!("JSON file {} not found, cannot extract data from it.", json_file.display());
+    //     }
+
+    //     value
+    // }
+
+    /*
+     * Replaces the value corresponding to a key in a JSON file
+     */
+    fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
+        if json_file.exists() {
+            println!("Attempting to update value for {} in {}.", json_file.display(), key);
+
+            // Open the file for reading
+            let mut file = fs::File::open(&json_file)
+                .expect("Error opening JSON file.");
+
+            // Attempt to read the contents of the component's .sr file
+            let mut contents = String::new();
+            let mut new_contents = String::new();
+            file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
+
+            let lines = contents.split("\n");
+            for line in lines {
+                // Make sure that we're extracting the proper license at the proper time
+                if line.contains(&key) {
+                    // Grab the original value
+                    let part: Vec<&str> = line.split(":").collect();
+                    let old_value = part[1].replace("\"", "").replace(",", "").trim().to_string();
+
+                    // Scope the change to matching line and replace the original line with the new one
+                    let new_line = line.replace(&old_value, &value);
+                    new_contents = contents.replace(line, &new_line);
+                }
+            }
+
+            // Make sure there's a change to write
+            if !new_contents.is_empty() {
+                // Try to write the contents back to the file
+                fs::write(json_file, new_contents)
+                    .expect("Could not write to JSON file.");
+            }
+        }
+    }
+
+    /*
      * Extracts a value from a yaml file based on a string key.
      */
     fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
@@ -475,17 +567,11 @@ pub mod sliderule {
 
         // If the file doesn't exist, we can't do anything
         if yaml_file.exists() {
-            println!("Attempting to get value from {} for key {}", yaml_file.display(), key);
-
             // Open the file for reading
-            let mut file = match fs::File::open(&yaml_file) {
-                Ok(file) => file,
-                Err(e) => {
-                    panic!("Error opening yaml file: {}", e);
-                }
-            };
+            let mut file = fs::File::open(&yaml_file)
+                .expect("Error opening yaml file.");
 
-            // Attempt to read the contents of the component's .sr file
+            // Attempt to read the contents of the file
             let mut contents = String::new();
             file.read_to_string(&mut contents).expect("ERROR: Unable to read the yaml file for this component");
 
@@ -510,15 +596,9 @@ pub mod sliderule {
      */
     fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
         if yaml_file.exists() {
-            println!("Attempting to update value for {} in {}.", yaml_file.display(), key);
-
             // Open the file for reading
-            let mut file = match fs::File::open(&yaml_file) {
-                Ok(file) => file,
-                Err(e) => {
-                    panic!("Error opening yaml file: {}", e);
-                }
-            };
+            let mut file = fs::File::open(&yaml_file)
+                .expect("Error opening yaml file.");
 
             // Attempt to read the contents of the component's .sr file
             let mut contents = String::new();
@@ -542,14 +622,8 @@ pub mod sliderule {
             // Make sure there's a change to write
             if !new_contents.is_empty() {
                 // Try to write the contents back to the file
-                match fs::write(yaml_file, new_contents) {
-                    Ok(_) => {
-                        println!("Updated yaml file with new content.");
-                    },
-                    Err(e) => {
-                        panic!("Could not write to yaml file: {}", e);
-                    }
-                };
+                fs::write(yaml_file, new_contents)
+                    .expect("Could not write to yaml file.");
             }
         }
     }
@@ -560,12 +634,8 @@ pub mod sliderule {
     fn get_cwd() -> PathBuf {
         let path = env::current_dir();
 
-        let cwd = match path {
-            Ok(dir) => dir,
-            Err(e) => {
-                panic!("ERROR: Could not get current working directory: {}", e);
-        }
-        };
+        let cwd = path
+            .expect("Could not get current working directory.");
 
         cwd
     }
@@ -576,10 +646,8 @@ pub mod sliderule {
         let cur_dir = get_cwd();
 
         // Get the parent directory of this component's directory
-        let parent_dir = match cur_dir.parent() {
-            Some(path) => path,
-            None => panic!("Could not get the parent directory of the current component.")
-        };
+        let parent_dir = cur_dir.parent()
+            .expect("Could not get the parent directory of the current component.");
 
         parent_dir.to_path_buf()
     }
@@ -599,7 +667,7 @@ pub mod sliderule {
         // Allows us to check if there is a .sr file in the parent directory
         let parent_file = get_parent_dir().join(".sr");
 
-        // If the parent directory contains a .sr file, we have a subcomponent, if not we have a top level component
+        // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
         if !parent_file.exists() && !current_file.exists() {
             level = 0;
         }
@@ -620,6 +688,8 @@ pub mod npm_sr;
 
 #[cfg(test)]
 mod tests {
+    use sliderule;
+
     #[test]
     fn it_works() {
         assert_eq!(2 + 2, 4);
