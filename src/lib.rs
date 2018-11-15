@@ -225,6 +225,35 @@ pub mod sliderule {
     }
 
     /*
+     * Prints out each of the licenses in the component's directory tree so that
+     * users can see where the licenses reside.
+     */
+    pub fn list_all_licenses() {
+        let cur_dir = get_cwd();
+
+        println!("Licenses Specified In This Component:");
+
+        // Walk through every sub-directory in this component, looking for .sr files
+        for entry in walkdir::WalkDir::new(&cur_dir) {
+            let entry = entry
+                .expect("Could not handle entry while walking components directory tree.");
+
+            // If we have a .sr file, keep it for later license extraction
+            if entry.path().ends_with(".sr") {
+                // The current component path
+                let component_path = entry.path().parent()
+                    .expect("Could not get the parent path of the .sr file.");
+
+                // We want the licenses from our current dot files
+                let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
+                let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
+
+                println!("Path: {}, Source License: {}, Documentation License: {}", component_path.display(), source_value, doc_value);
+            }
+        }
+    }
+
+    /*
      * Adds a remote component via URL to node_modules.
      */
     pub fn add_remote_component(url: &str) {
