@@ -478,10 +478,6 @@ fn amalgamate_licenses() {
         }
     }
 
-    // We talked the directories in a way that the entries will be in reverse order
-    source_licenses.reverse();
-    doc_licenses.reverse();
-
     // Make sure everything is enclosed in parentheses
     license_str.push_str("(");
 
