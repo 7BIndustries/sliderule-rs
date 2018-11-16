@@ -113,7 +113,7 @@ pub fn create_component(name: &String, src_license: &String, docs_license: &Stri
 /*
     * Uploads any changes to the project to the remote repository.
     */
-pub fn upload_project() {
+pub fn upload_component() {
     let mut url = String::new();
 
     // Make sure that our package.json file is updated with all the license info
