@@ -1,5 +1,5 @@
 [package]
-name = "sliderule_impl"
+name = "sliderule"
 version = "0.1.0"
 authors = ["Jeremy Wright <wrightjmf@gmail.com>"]
 
