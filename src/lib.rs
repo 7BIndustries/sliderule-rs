@@ -1,14 +1,11 @@
 extern crate liquid;
 extern crate walkdir;
 
-use std::io;
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::io::prelude::*;
 
-// use git_sr;
-// use npm_sr;
 
 /*
 * Create a new Sliderule component or convert an existing project to being a Sliderule project.
@@ -113,21 +110,14 @@ pub fn create_component(name: &String, src_license: &String, docs_license: &Stri
 /*
     * Uploads any changes to the project to the remote repository.
     */
-pub fn upload_component(message: String) {
-    let mut url = String::new();
-
+pub fn upload_component(message: String, url: String) {
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses();
 
     // Make sure this project has already been initialized as a repository
-    if !Path::new(".git").exists() {
-        println!("This project has not been initialized with a repository yet. Enter a URL of an existing repository to upload this component to:");
-
-        io::stdin().read_line(&mut url)
-            .expect("ERROR: Failed to read name or URL from user.");
-
+    if url.is_empty() {
         // Initialize the git repository and set the remote URL to push to
-        git_sr::git_init(url.trim());
+        git_sr::git_init(&url);
 
         // Generate gitignore file so that we don't commit and push things we shouldn't be
         generate_gitignore();
@@ -141,16 +131,9 @@ pub fn upload_component(message: String) {
 /*
 * Converts a local component into a remote component, asking for a remote repo to push it to.
 */
-pub fn refactor(name: &str) {
-    let mut url = String::new();
-    
-    println!("Please enter the URL of an existing repository to upload the component to:");
-
-    io::stdin().read_line(&mut url)
-            .expect("ERROR: Failed to read name or URL from user.");
-
+pub fn refactor(name: String, url: String) {
     let orig_dir = get_cwd();
-    let component_dir = Path::new("components").join(name);
+    let component_dir = Path::new("components").join(&name);
 
     if component_dir.exists() {
         // We need to be in the component's directory before running the next commands
@@ -158,7 +141,7 @@ pub fn refactor(name: &str) {
             .expect("Could not change into components directory.");
 
         // Set the directory up as a git repo and then push the changes to the remote
-        git_sr::git_init(&url.trim());
+        git_sr::git_init(&url);
         git_sr::git_add_and_commit(String::new());
 
         // Change back up to the original, top level directory
@@ -167,7 +150,7 @@ pub fn refactor(name: &str) {
 
         // Remove the local component and then install it from the remote using npm
         remove(&name);
-        npm_sr::npm_install(&url.trim());
+        npm_sr::npm_install(&url);
     }
     else {
         panic!("ERROR: The component does not exist in the components directory.");
