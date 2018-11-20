@@ -113,7 +113,7 @@ pub fn create_component(name: &String, src_license: &String, docs_license: &Stri
 /*
     * Uploads any changes to the project to the remote repository.
     */
-pub fn upload_component() {
+pub fn upload_component(message: String) {
     let mut url = String::new();
 
     // Make sure that our package.json file is updated with all the license info
@@ -134,7 +134,7 @@ pub fn upload_component() {
     }
     
     // Add all changes, commit and push
-    git_sr::git_add_and_commit();
+    git_sr::git_add_and_commit(message);
 }
 
 
@@ -159,7 +159,7 @@ pub fn refactor(name: &str) {
 
         // Set the directory up as a git repo and then push the changes to the remote
         git_sr::git_init(&url.trim());
-        git_sr::git_add_and_commit();
+        git_sr::git_add_and_commit(String::new());
 
         // Change back up to the original, top level directory
         env::set_current_dir(&orig_dir)
@@ -172,6 +172,9 @@ pub fn refactor(name: &str) {
     else {
         panic!("ERROR: The component does not exist in the components directory.");
     }
+
+    // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
+    amalgamate_licenses();
 }
 
 
@@ -206,6 +209,9 @@ pub fn remove(name: &str) {
         // Use npm to remove the remote component
         npm_sr::npm_uninstall(name);
     }
+
+    // Make sure that our package.json file is updated with all the license info
+    amalgamate_licenses();
 
     println!("{} component removed.", name);
 }
@@ -274,6 +280,9 @@ pub fn download_component(url: &str) {
     */
 pub fn update_dependencies() {
     npm_sr::npm_install("");
+
+    // Make sure that our package.json file is updated with all the license info
+    amalgamate_licenses();
 }
 
 /*
@@ -283,6 +292,9 @@ pub fn update_local_component() {
     if Path::new(".git").exists() {
         git_sr::git_pull();
     }
+
+    // Make sure that our package.json file is updated with all the license info
+    amalgamate_licenses();
 }
 
 
@@ -717,8 +729,6 @@ pub mod npm_sr;
 
 #[cfg(test)]
 mod tests {
-    use sliderule;
-
     #[test]
     fn it_works() {
         assert_eq!(2 + 2, 4);

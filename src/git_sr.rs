@@ -46,14 +46,19 @@ pub fn git_init(url: &str) {
 /*
 * Adds, commits and pushes any changes to the remote git repo.
 */
-pub fn git_add_and_commit() {
+pub fn git_add_and_commit(commit_message: String) {
     let mut message = String::new();
 
-    // Get the commit message from the user to mark these changes with
-    println!("Message to attach to these project changes:");
+    if commit_message.is_empty() {
+        // Get the commit message from the user to mark these changes with
+        println!("Message to attach to these project changes:");
 
-    io::stdin().read_line(&mut message)
-        .expect("ERROR: Failed to read change message line from user");
+        io::stdin().read_line(&mut message)
+            .expect("ERROR: Failed to read change message line from user");
+    }
+    else {
+        message = commit_message;
+    }
 
     // git add .
     let output = match Command::new("git").args(&["add", "."]).output() {
