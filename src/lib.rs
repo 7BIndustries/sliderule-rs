@@ -114,17 +114,22 @@ pub fn upload_component(message: String, url: String) {
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses();
 
-    // Make sure this project has already been initialized as a repository
-    if url.is_empty() {
+    // Initialize as a repo only if needed
+    if !Path::new(".git").exists() {
         // Initialize the git repository and set the remote URL to push to
         git_sr::git_init(&url);
+    }
 
+    // Create the gitignore file only if we need to
+    if !Path::new(".gitignore").exists() {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
         generate_gitignore();
     }
     
     // Add all changes, commit and push
     git_sr::git_add_and_commit(message);
+
+    println!("Done uploading component.");
 }
 
 

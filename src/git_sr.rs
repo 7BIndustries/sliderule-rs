@@ -82,7 +82,8 @@ pub fn git_add_and_commit(message: String) {
     };
 
     if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        // panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        println!("{}", String::from_utf8_lossy(&output.stderr));
     }
 }
 
