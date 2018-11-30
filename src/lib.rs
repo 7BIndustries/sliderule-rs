@@ -10,9 +10,9 @@ use std::io::prelude::*;
 /*
 * Create a new Sliderule component or convert an existing project to being a Sliderule project.
 */
-pub fn create_component(name: &String, src_license: &String, docs_license: &String) {
-    let source_license: String;
-    let doc_license: String;
+pub fn create_component(name: &String, source_license: &String, doc_license: &String) {
+    // let source_license: String;
+    // let doc_license: String;
 
     // The path can either lead to a top level component (project), or a component nested within a project
     let component_dir: PathBuf;
@@ -74,25 +74,6 @@ pub fn create_component(name: &String, src_license: &String, docs_license: &Stri
 
     // Generate bom_data.yaml
     generate_bom(&name);
-
-    // Ask the user for their license choice for the source of this component if they haven't specified it on the command line
-    let licenses = get_licenses();
-
-    // See if the source license was supplied in a command line argument
-    if src_license.is_empty() {
-        source_license = licenses.0;
-    }
-    else {
-        source_license = src_license.to_string();
-    }
-
-    // See if the documentation license was supplied in a command line argument
-    if docs_license.is_empty() {
-        doc_license = licenses.1;
-    }
-    else {
-        doc_license = docs_license.to_string();
-    }
 
     // Generate package.json, if needed
     generate_package_json(&name, &source_license);
@@ -163,6 +144,8 @@ pub fn refactor(name: String, url: String) {
 
     // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
     amalgamate_licenses();
+
+    println!("Finished refactoring local component to remote repository.");
 }
 
 
