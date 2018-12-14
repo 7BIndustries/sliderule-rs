@@ -701,7 +701,7 @@ pub mod npm_sr;
 #[cfg(test)]
 mod tests {
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_get_level() {
+        assert!(super::get_level() == 0);
     }
 }
