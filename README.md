@@ -1,5 +1,6 @@
 # sliderule-rs
 
+[![Travis Build Status](https://travis-ci.org/7BIndustries/sliderule-rs.svg?branch=master)](https://ci.appveyor.com/project/jmwright/sliderule-rs)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/b2cvxvvv8irflqgu/branch/master?svg=true)](https://ci.appveyor.com/project/jmwright/sliderule-rs)
 
 ## Introduction
