@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 extern crate liquid;
 extern crate walkdir;
 
@@ -8,7 +10,7 @@ use std::io::prelude::*;
 
 
 /*
-* Create a new Sliderule component or convert an existing project to being a Sliderule project.
+ * Create a new Sliderule component or convert an existing project to being a Sliderule project.
 */
 pub fn create_component(name: &String, source_license: &String, doc_license: &String) {
     // let source_license: String;
@@ -82,18 +84,18 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     generate_dot_file(&source_license, &doc_license);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 
     println!("Finished setting up component.");
 }
 
 
 /*
-    * Uploads any changes to the project to the remote repository.
-    */
+ * Uploads any changes to the project to the remote repository.
+*/
 pub fn upload_component(message: String, url: String) {
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 
     // Initialize as a repo only if needed
     if !Path::new(".git").exists() {
@@ -115,7 +117,7 @@ pub fn upload_component(message: String, url: String) {
 
 
 /*
-* Converts a local component into a remote component, asking for a remote repo to push it to.
+ * Converts a local component into a remote component, asking for a remote repo to push it to.
 */
 pub fn refactor(name: String, url: String) {
     let orig_dir = get_cwd();
@@ -143,14 +145,14 @@ pub fn refactor(name: String, url: String) {
     }
 
     // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 
     println!("Finished refactoring local component to remote repository.");
 }
 
 
 /*
-* Removes a component from the project structure.
+ * Removes a component from the project structure.
 */
 pub fn remove(name: &str) {
     let component_dir = Path::new("components").join(name);
@@ -182,14 +184,14 @@ pub fn remove(name: &str) {
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 
     println!("{} component removed.", name);
 }
 
 /*
-    * Allows the user to change the source and/or documentation licenses for the project.
-    */
+ * Allows the user to change the source and/or documentation licenses for the project.
+*/
 pub fn change_licenses(source_license: &String, doc_license: &String) {
     let cwd = get_cwd().join(".sr");
 
@@ -197,13 +199,13 @@ pub fn change_licenses(source_license: &String, doc_license: &String) {
     update_yaml_value(&cwd, "documentation_license", doc_license);
 
     // Make sure our new licenses are up to date in package.json
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 }
 
 /*
-    * Prints out each of the licenses in the component's directory tree so that
-    * users can see where the licenses reside.
-    */
+ * Prints out each of the licenses in the component's directory tree so that
+ * users can see where the licenses reside.
+*/
 pub fn list_all_licenses() {
     let cur_dir = get_cwd();
 
@@ -230,18 +232,18 @@ pub fn list_all_licenses() {
 }
 
 /*
-    * Adds a remote component via URL to node_modules.
-    */
+ * Adds a remote component via URL to node_modules.
+*/
 pub fn add_remote_component(url: &str) {
     npm_sr::npm_install(&url);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 }
 
 /*
-    * Downloads (copies) a component from a remote repository.
-    */
+ * Downloads (copies) a component from a remote repository.
+*/
 pub fn download_component(url: &str) {
     git_sr::git_clone(url);
 }
@@ -253,24 +255,24 @@ pub fn update_dependencies() {
     npm_sr::npm_install("");
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 }
 
 /*
-    * Updates the local component who's directory we're in
-    */
+ * Updates the local component who's directory we're in
+*/
 pub fn update_local_component() {
     if Path::new(".git").exists() {
         git_sr::git_pull();
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses();
+    amalgamate_licenses(&get_cwd());
 }
 
 
 /*
-* Generates a template README.md file to help the user get started.
+ * Generates a template README.md file to help the user get started.
 */
 fn generate_readme(name: &str) {
     if !Path::new("README.md").exists() {
@@ -291,7 +293,7 @@ fn generate_readme(name: &str) {
 
 
 /*
-* Generates a bill of materials from a template.
+ * Generates a bill of materials from a template.
 */
 fn generate_bom(name: &str) {
     if !Path::new("bom_data.yaml").exists() {
@@ -312,8 +314,8 @@ fn generate_bom(name: &str) {
 
 
 /*
-    * Generates a package.json file for npm based on a Liquid template.
-    */
+ * Generates a package.json file for npm based on a Liquid template.
+*/
 fn generate_package_json(name: &str, license: &str) {
     if !Path::new("package.json").exists() {
         // Add the things that need to be put substituted into the package file
@@ -334,7 +336,7 @@ fn generate_package_json(name: &str, license: &str) {
 
 
 /*
-* Generates the .gitignore file used by the git command to ignore files and directories.
+ * Generates the .gitignore file used by the git command to ignore files and directories.
 */
 fn generate_gitignore() {
     if !Path::new(".gitignore").exists() {
@@ -354,7 +356,7 @@ fn generate_gitignore() {
 
 
 /*
-* Generates the dot file that tracks whether this is a top level component/project or a sub-component
+ * Generates the dot file that tracks whether this is a top level component/project or a sub-component
 */
 fn generate_dot_file(source_license: &str, doc_license: &str) {
     if !Path::new(".sr").exists() {
@@ -376,7 +378,7 @@ fn generate_dot_file(source_license: &str, doc_license: &str) {
 
 
 /*
-* Reads a template to a string so that it can be written to a new components directory structure.
+ * Reads a template to a string so that it can be written to a new components directory structure.
 */
 fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> String {
     // Figure out where the templates are stored
@@ -406,8 +408,8 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
 }
 
 /*
-    * Extracts the source and documentation licenses from a component's .sr file.
-    */
+ * Extracts the source and documentation licenses from a component's .sr file.
+*/
 pub fn get_licenses() -> (String, String) {
     let sr_file: PathBuf;
 
@@ -431,17 +433,15 @@ pub fn get_licenses() -> (String, String) {
 }
 
 /*
-    * Walk the directory structure of the current component and combine the licenses per the SPDX naming conventions.
-    */
-fn amalgamate_licenses() {
+ * Walk the directory structure of the current component and combine the licenses per the SPDX naming conventions.
+*/
+fn amalgamate_licenses(target_dir: &Path) {
     let mut license_str = String::new();
     let mut source_licenses: Vec<String> = Vec::new();
     let mut doc_licenses: Vec<String> = Vec::new();
 
-    let cur_dir = get_cwd();
-
     // Walk through every sub-directory in this component, looking for .sr files
-    for entry in walkdir::WalkDir::new(&cur_dir) {
+    for entry in walkdir::WalkDir::new(&target_dir) {
         let entry = entry
             .expect("Could not handle entry while walking components directory tree.");
 
@@ -498,44 +498,44 @@ fn amalgamate_licenses() {
     // Make sure everything is enclosed in parentheses
     license_str.push_str(")");
 
-    update_json_value(&cur_dir.join("package.json"), "license", &license_str);
+    update_json_value(&target_dir.join("package.json"), "license", &license_str);
 }
 
 /*
-    * Extracts a value from a JSON file based on a string key.
-    */
-// fn get_json_value(json_file: &PathBuf, key: &str) -> String {
-//     let mut value = String::new();
+ * Extracts a value from a JSON file based on a string key.
+*/
+fn get_json_value(json_file: &PathBuf, key: &str) -> String {
+    let mut value = String::new();
 
-//     // If the file doesn't exist, we can't do anything
-//     if json_file.exists() {
-//         // Open the file for reading
-//         let mut file = fs::File::open(&json_file)
-//             .expect("Error opening JSON file.");
+    // If the file doesn't exist, we can't do anything
+    if json_file.exists() {
+        // Open the file for reading
+        let mut file = fs::File::open(&json_file)
+            .expect("Error opening JSON file.");
 
-//         // Attempt to read the contents of the file
-//         let mut contents = String::new();
-//         file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
+        // Attempt to read the contents of the file
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
 
-//         let lines = contents.split("\n");
-//         for line in lines {
-//             // Make sure that we're extracting the proper license at the proper time
-//             if line.contains(&key) {
-//                 let part: Vec<&str> = line.split(":").collect();
-//                 value = part[1].replace("\"", "").replace(",", "").trim().to_string();
-//             }
-//         }
-//     }
-//     else {
-//         panic!("JSON file {} not found, cannot extract data from it.", json_file.display());
-//     }
+        let lines = contents.split("\n");
+        for line in lines {
+            // Make sure that we're extracting the proper license at the proper time
+            if line.contains(&key) {
+                let part: Vec<&str> = line.split(":").collect();
+                value = part[1].replace("\"", "").replace(",", "").trim().to_string();
+            }
+        }
+    }
+    else {
+        panic!("JSON file {} not found, cannot extract data from it.", json_file.display());
+    }
 
-//     value
-// }
+    value
+}
 
 /*
-    * Replaces the value corresponding to a key in a JSON file
-    */
+ * Replaces the value corresponding to a key in a JSON file
+*/
 fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
     if json_file.exists() {
         println!("Attempting to update value for {} in {}.", json_file.display(), key);
@@ -573,8 +573,8 @@ fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
 }
 
 /*
-    * Extracts a value from a yaml file based on a string key.
-    */
+ * Extracts a value from a yaml file based on a string key.
+*/
 fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
     let mut value = String::new();
 
@@ -605,8 +605,8 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
 }
 
 /*
-    * Replaces the value corresponding to a key in a yaml file
-    */
+ * Replaces the value corresponding to a key in a yaml file
+*/
 fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
     if yaml_file.exists() {
         // Open the file for reading
@@ -653,45 +653,15 @@ fn get_cwd() -> PathBuf {
     cwd
 }
 
-// Gets the parent directory of the current component
-fn get_parent_dir() -> PathBuf {
-    // Get the current directory
-    let cur_dir = get_cwd();
-
+/*
+ * Gets the parent directory of the current component
+*/
+fn get_parent_dir(target_dir: &Path) -> PathBuf {
     // Get the parent directory of this component's directory
-    let parent_dir = cur_dir.parent()
-        .expect("Could not get the parent directory of the current component.");
+    let parent_dir = target_dir.parent()
+        .expect("Could not get the parent directory of the target component.");
 
     parent_dir.to_path_buf()
-}
-
-/*
-    * Figures out what depth the component is at.
-    * 0 = A top level component is probably being created
-    * 1 = A top level component with no parent
-    * 2 = A sub-component at depth n
-    */
-pub fn get_level() -> u8 {
-    let level: u8;
-
-    // Allows us to check if there is a .sr file in the current directory
-    let current_file = get_cwd().join(".sr");
-
-    // Allows us to check if there is a .sr file in the parent directory
-    let parent_file = get_parent_dir().join(".sr");
-
-    // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
-    if !parent_file.exists() && !current_file.exists() {
-        level = 0;
-    }
-    else if !parent_file.exists() && current_file.exists() {
-        level = 1;
-    }
-    else {
-        level = 2;
-    }
-
-    level
 }
 
 pub mod git_sr;
@@ -700,8 +670,111 @@ pub mod npm_sr;
 
 #[cfg(test)]
 mod tests {
+    use std::env;
+    extern crate git2;
+    extern crate uuid;
+    use std::path::PathBuf;
+
+    /*
+     * Tests whether or not we can accurately find the parent dir of a component dir
+     */
     #[test]
-    fn test_get_level() {
-        assert!(super::get_level() == 0);
+    fn test_get_parent_dir() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        assert!(&test_dir.join("toplevel").exists());
+        assert_eq!(super::get_parent_dir(&test_dir.join("toplevel")), test_dir);
+    }
+
+    /*
+     * Tests whether we can get and set yaml file properties correctly
+     */
+    #[test]
+    fn test_yaml_file_handling() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Read the source license from the sample directory
+        let source_license = super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
+        assert_eq!(source_license, "Unlicense");
+
+        // Change the source license from the sample directory
+        super::update_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license", "NotASourceLicense");
+
+        // Make sure the source license changed
+        let source_license = super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
+        assert_eq!(source_license, "NotASourceLicense");
+
+        // Read a non-existent key from the sample directory
+        let value = super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "not_a_key");
+        assert_eq!(value, "");
+    }
+
+    /*
+     * Tests whether we can get and set json file properties correctly
+     */
+    #[test]
+    fn test_json_file_handling() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Read the component name from the package.json file
+        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "name");
+        assert_eq!(name, "toplevel");
+
+        // Change the component name in the package.json file
+        super::update_json_value(&test_dir.join("toplevel").join("package.json"), "name", "NotAName");
+
+        // Make sure the component name changed in package.json
+        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "name");
+        assert_eq!(name, "NotAName");
+
+        // Read a non-existent key from package.json
+        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "not_a_key");
+        assert_eq!(name, "");
+    }
+
+    /*
+     * Tests whether or not the licenses are collected into the license field of package.json correctly.
+     */
+    #[test]
+    fn test_license_amalgamation() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Make sure the license field starts with something other than the string we are looking for
+        super::update_json_value(&test_dir.join("toplevel").join("package.json"), "license", "NotALicense");
+
+        super::amalgamate_licenses(&test_dir.join("toplevel"));
+
+        // Make sure that all of the licenses were outlined correctly
+        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
+        assert_eq!(name, "(Unlicense AND NotASourceLicense AND CC0-1.0 AND NotADocLicense AND CC-BY-4.0)");
+    }
+
+    /*
+     * Sets up a test directory for our use.
+     */
+    fn set_up(temp_dir: &PathBuf, dir_name: &str) -> PathBuf {
+        let url = format!("git://127.0.0.1/{}", dir_name);
+
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+
+       match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join(dir_name)) {
+            Ok(repo) => repo,
+            Err(e) => panic!("failed to clone: {}", e),
+        };
+
+        temp_dir.join(test_dir_name)
     }
 }
