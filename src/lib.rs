@@ -410,7 +410,7 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
 /*
  * Extracts the source and documentation licenses from a component's .sr file.
 */
-pub fn get_licenses() -> (String, String) {
+pub fn get_licenses(target_dir: &Path) -> (String, String) {
     let sr_file: PathBuf;
 
     // We can hand back the default licenses, if nothing else
@@ -418,7 +418,7 @@ pub fn get_licenses() -> (String, String) {
     let mut doc_license = String::from("CC0-1.0");
 
     // If we're in a component directory, pull the license info from that
-    sr_file = get_cwd().join(".sr");
+    sr_file = target_dir.join(".sr");
 
     // Safety check to make sure the file exists
     if sr_file.exists() {
@@ -759,6 +759,20 @@ mod tests {
         // Make sure that all of the licenses were outlined correctly
         let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
         assert_eq!(name, "(Unlicense AND NotASourceLicense AND CC0-1.0 AND NotADocLicense AND CC-BY-4.0)");
+    }
+
+    #[test]
+    fn test_get_licenses() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Make sure that we get the proper licenses back when requested
+        let licenses = super::get_licenses(&test_dir);
+
+        assert_eq!(licenses.0, "Unlicense");
+        assert_eq!(licenses.1, "CC0-1.0");
     }
 
     /*
