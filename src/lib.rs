@@ -2,6 +2,7 @@
 
 extern crate liquid;
 extern crate walkdir;
+extern crate os_info;
 
 use std::env;
 use std::fs;
@@ -203,35 +204,6 @@ pub fn change_licenses(source_license: &String, doc_license: &String) {
 }
 
 /*
- * Prints out each of the licenses in the component's directory tree so that
- * users can see where the licenses reside.
-*/
-pub fn list_all_licenses() {
-    let cur_dir = get_cwd();
-
-    println!("Licenses Specified In This Component:");
-
-    // Walk through every sub-directory in this component, looking for .sr files
-    for entry in walkdir::WalkDir::new(&cur_dir) {
-        let entry = entry
-            .expect("Could not handle entry while walking components directory tree.");
-
-        // If we have a .sr file, keep it for later license extraction
-        if entry.path().ends_with(".sr") {
-            // The current component path
-            let component_path = entry.path().parent()
-                .expect("Could not get the parent path of the .sr file.");
-
-            // We want the licenses from our current dot files
-            let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
-            let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
-
-            println!("Path: {}, Source License: {}, Documentation License: {}", component_path.display(), source_value, doc_value);
-        }
-    }
-}
-
-/*
  * Adds a remote component via URL to node_modules.
 */
 pub fn add_remote_component(url: &str) {
@@ -405,6 +377,37 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
         .expect("Could not render template using Liquid.");
 
     output
+}
+
+/*
+ * Prints out each of the licenses in the component's directory tree so that
+ * users can see where the licenses reside.
+*/
+pub fn list_all_licenses(target_dir: &Path) -> String {
+    let nl = get_newline();
+    let mut license_listing = String::from("Licenses Specified In This Component:");
+    license_listing.push_str(&nl);
+
+    // Walk through every sub-directory in this component, looking for .sr files
+    for entry in walkdir::WalkDir::new(&target_dir) {
+        let entry = entry
+            .expect("Could not handle entry while walking components directory tree.");
+
+        // If we have a .sr file, keep it for later license extraction
+        if entry.path().ends_with(".sr") {
+            // The current component path
+            let component_path = entry.path().parent()
+                .expect("Could not get the parent path of the .sr file.");
+
+            // We want the licenses from our current dot files
+            let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
+            let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
+
+            license_listing.push_str(&format!("Path: {}, Source License: {}, Documentation License: {}{}", component_path.display(), source_value, doc_value, nl));
+        }
+    }
+
+    license_listing
 }
 
 /*
@@ -664,6 +667,20 @@ fn get_parent_dir(target_dir: &Path) -> PathBuf {
     parent_dir.to_path_buf()
 }
 
+/*
+ * Gets the line ending that's appropriate for the OS we are running on.
+ */
+fn get_newline() -> String {
+    let info = os_info::get();
+
+    if info.os_type() == os_info::Type::Windows {
+        String::from("\r\n")
+    }
+    else {
+        String::from("\n")
+    }
+}
+
 pub mod git_sr;
 pub mod npm_sr;
 
@@ -773,6 +790,24 @@ mod tests {
 
         assert_eq!(licenses.0, "Unlicense");
         assert_eq!(licenses.1, "CC0-1.0");
+    }
+
+    #[test]
+    fn test_list_all_licenses() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Make suer that we get a proper license listing when requested
+        let license_listing = super::list_all_licenses(&test_dir);
+
+        assert!(license_listing.contains("Licenses Specified In This Component:"));
+        assert!(license_listing.contains("Unlicense"));
+        assert!(license_listing.contains("CC0-1.0"));
+        assert!(license_listing.contains("NotASourceLicense"));
+        assert!(license_listing.contains("NotADocLicense"));
+        assert!(license_listing.contains("CC-BY-4.0"));
     }
 
     /*

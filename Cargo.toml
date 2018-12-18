@@ -4,7 +4,7 @@ version = "0.1.0"
 authors = ["Jeremy Wright <wrightjmf@gmail.com>"]
 
 [dependencies]
-os_info = "1.0.3"
+os_info = "1.1"
 walkdir = "2.2.5"
 liquid = "0.17"
 
