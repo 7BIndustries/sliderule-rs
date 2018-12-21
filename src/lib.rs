@@ -13,7 +13,7 @@ use std::io::prelude::*;
 /*
  * Create a new Sliderule component or convert an existing project to being a Sliderule project.
 */
-pub fn create_component(name: &String, source_license: &String, doc_license: &String) {
+pub fn create_component(target_dir: &Path, name: &String, source_license: &String, doc_license: &String) {
     // let source_license: String;
     // let doc_license: String;
 
@@ -21,11 +21,11 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     let component_dir: PathBuf;
 
     // This is a top level component (project)
-    if Path::new(".sr").exists() {
-        component_dir = PathBuf::from("components").join(name);
+    if target_dir.join(".sr").exists() {
+        component_dir = target_dir.join("components").join(name);
     }
     else {
-        component_dir = PathBuf::from(name);
+        component_dir = target_dir.join(name);
     }
 
     // Create a directory for our component
@@ -37,8 +37,8 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
         .expect("Could not change into components directory.");
 
     // Create the components directory, if needed
-    if !Path::new("components").exists() {
-        fs::create_dir("components")
+    if !target_dir.join("components").exists() {
+        fs::create_dir(target_dir.join("components"))
             .expect("Could not create components directory.");
     }
     else {
@@ -46,8 +46,8 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     }
 
     // Create the dist directory, if needed
-    if !Path::new("dist").exists() {
-        fs::create_dir("dist")
+    if !target_dir.join("dist").exists() {
+        fs::create_dir(target_dir.join("dist"))
             .expect("Could not create dist directory.");
     }
     else {
@@ -55,8 +55,8 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     }
 
     // Create the docs directory, if needed
-    if !Path::new("docs").exists() {
-        fs::create_dir("docs")
+    if !target_dir.join("docs").exists() {
+        fs::create_dir(target_dir.join("docs"))
             .expect("Could not create docs directory.");
     }
     else {
@@ -64,8 +64,8 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     }
 
     //Create the source directory, if needed
-    if !Path::new("source").exists() {
-        fs::create_dir("source")
+    if !target_dir.join("source").exists() {
+        fs::create_dir(target_dir.join("source"))
             .expect("Could not create source directory.");
     }
     else {
@@ -73,19 +73,19 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
     }
 
     // Generate the template readme file
-    generate_readme(&name);
+    generate_readme(&target_dir, &name);
 
     // Generate bom_data.yaml
-    generate_bom(&name);
+    generate_bom(&target_dir, &name);
 
     // Generate package.json, if needed
-    generate_package_json(&name, &source_license);
+    generate_package_json(&target_dir, &name, &source_license);
 
     // Generate the .sr file that provides extra information about this component
-    generate_dot_file(&source_license, &doc_license);
+    generate_dot_file(&target_dir, &source_license, &doc_license);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 
     println!("Finished setting up component.");
 }
@@ -94,20 +94,20 @@ pub fn create_component(name: &String, source_license: &String, doc_license: &St
 /*
  * Uploads any changes to the project to the remote repository.
 */
-pub fn upload_component(message: String, url: String) {
+pub fn upload_component(target_dir: &Path, message: String, url: String) {
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 
     // Initialize as a repo only if needed
-    if !Path::new(".git").exists() {
+    if !target_dir.join(".git").exists() {
         // Initialize the git repository and set the remote URL to push to
         git_sr::git_init(&url);
     }
 
     // Create the gitignore file only if we need to
-    if !Path::new(".gitignore").exists() {
+    if !target_dir.join(".gitignore").exists() {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
-        generate_gitignore();
+        generate_gitignore(&target_dir);
     }
     
     // Add all changes, commit and push
@@ -120,9 +120,9 @@ pub fn upload_component(message: String, url: String) {
 /*
  * Converts a local component into a remote component, asking for a remote repo to push it to.
 */
-pub fn refactor(name: String, url: String) {
-    let orig_dir = get_cwd();
-    let component_dir = Path::new("components").join(&name);
+pub fn refactor(target_dir: &Path, name: String, url: String) {
+    let orig_dir = target_dir;
+    let component_dir = target_dir.join("components").join(&name);
 
     if component_dir.exists() {
         // We need to be in the component's directory before running the next commands
@@ -138,7 +138,7 @@ pub fn refactor(name: String, url: String) {
             .expect("Could not change into original parent directory.");
 
         // Remove the local component and then install it from the remote using npm
-        remove(&name);
+        remove(&target_dir, &name);
         npm_sr::npm_install(&url);
     }
     else {
@@ -146,7 +146,7 @@ pub fn refactor(name: String, url: String) {
     }
 
     // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 
     println!("Finished refactoring local component to remote repository.");
 }
@@ -155,8 +155,8 @@ pub fn refactor(name: String, url: String) {
 /*
  * Removes a component from the project structure.
 */
-pub fn remove(name: &str) {
-    let component_dir = Path::new("components").join(name);
+pub fn remove(target_dir: &Path, name: &str) {
+    let component_dir = target_dir.join("components").join(name);
 
     // If the component exists as a subdirectory of components delete the directory directly otherwise use npm to remove it.
     if component_dir.exists() {
@@ -185,7 +185,7 @@ pub fn remove(name: &str) {
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 
     println!("{} component removed.", name);
 }
@@ -193,61 +193,64 @@ pub fn remove(name: &str) {
 /*
  * Allows the user to change the source and/or documentation licenses for the project.
 */
-pub fn change_licenses(source_license: &String, doc_license: &String) {
-    let cwd = get_cwd().join(".sr");
+pub fn change_licenses(target_dir: &Path, source_license: &String, doc_license: &String) {
+    let cwd = target_dir.join(".sr");
 
     update_yaml_value(&cwd, "source_license", source_license);
     update_yaml_value(&cwd, "documentation_license", doc_license);
 
     // Make sure our new licenses are up to date in package.json
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 }
 
 /*
  * Adds a remote component via URL to node_modules.
 */
-pub fn add_remote_component(url: &str) {
+pub fn add_remote_component(target_dir: &Path, url: &str) {
     npm_sr::npm_install(&url);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 }
 
 /*
  * Downloads (copies) a component from a remote repository.
 */
-pub fn download_component(url: &str) {
+pub fn download_component(target_dir: &Path, url: &str) {
+    // TODO: Handle this directory change properly
+    println!("{}", target_dir.display());
+
     git_sr::git_clone(url);
 }
 
 /*
     * Updates all remote components in node_modules
     */
-pub fn update_dependencies() {
+pub fn update_dependencies(target_dir: &Path) {
     npm_sr::npm_install("");
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 }
 
 /*
  * Updates the local component who's directory we're in
 */
-pub fn update_local_component() {
-    if Path::new(".git").exists() {
+pub fn update_local_component(target_dir: &Path) {
+    if target_dir.join(".git").exists() {
         git_sr::git_pull();
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&get_cwd());
+    amalgamate_licenses(&target_dir);
 }
 
 
 /*
  * Generates a template README.md file to help the user get started.
 */
-fn generate_readme(name: &str) {
-    if !Path::new("README.md").exists() {
+fn generate_readme(target_dir: &Path, name: &str) {
+    if !target_dir.join("README.md").exists() {
         // Add the things that need to be put substituted into the README file
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar(name.to_owned()));
@@ -255,7 +258,7 @@ fn generate_readme(name: &str) {
         let contents = render_template("README.md.liquid", &mut globals);
 
         // Write the template text into the readme file
-        fs::write("README.md", contents)
+        fs::write(target_dir.join("README.md"), contents)
             .expect("Could not write to README.md file.");
     }
     else {
@@ -267,8 +270,8 @@ fn generate_readme(name: &str) {
 /*
  * Generates a bill of materials from a template.
 */
-fn generate_bom(name: &str) {
-    if !Path::new("bom_data.yaml").exists() {
+fn generate_bom(target_dir: &Path, name: &str) {
+    if !target_dir.join("bom_data.yaml").exists() {
         // Add the things that need to be put substituted into the BoM file
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar(name.to_owned()));
@@ -276,7 +279,7 @@ fn generate_bom(name: &str) {
         let contents = render_template("bom_data.yaml.liquid", &mut globals);
 
         // Write the template text into the readme file
-        fs::write("bom_data.yaml", contents)
+        fs::write(target_dir.join("bom_data.yaml"), contents)
             .expect("Could not write to bom_data.yaml.");
     }
     else {
@@ -288,8 +291,8 @@ fn generate_bom(name: &str) {
 /*
  * Generates a package.json file for npm based on a Liquid template.
 */
-fn generate_package_json(name: &str, license: &str) {
-    if !Path::new("package.json").exists() {
+fn generate_package_json(target_dir: &Path, name: &str, license: &str) {
+    if !target_dir.join("package.json").exists() {
         // Add the things that need to be put substituted into the package file
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar(name.to_owned()));
@@ -298,7 +301,7 @@ fn generate_package_json(name: &str, license: &str) {
         let contents = render_template("package.json.liquid", &mut globals);
 
         // Write the contents into the file
-        fs::write("package.json", contents)
+        fs::write(target_dir.join("package.json"), contents)
             .expect("Could not write to package.json.");
     }
     else {
@@ -310,15 +313,15 @@ fn generate_package_json(name: &str, license: &str) {
 /*
  * Generates the .gitignore file used by the git command to ignore files and directories.
 */
-fn generate_gitignore() {
-    if !Path::new(".gitignore").exists() {
+fn generate_gitignore(target_dir: &Path) {
+    if !target_dir.join(".gitignore").exists() {
         // Add the things that need to be put substituted into the gitignore file (none at this time)
         let mut globals = liquid::value::Object::new();
 
         let contents = render_template(".gitignore.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(".gitignore", contents)
+        fs::write(target_dir.join(".gitignore"), contents)
             .expect("Could not write to .gitignore.");
     }
     else {
@@ -330,8 +333,8 @@ fn generate_gitignore() {
 /*
  * Generates the dot file that tracks whether this is a top level component/project or a sub-component
 */
-fn generate_dot_file(source_license: &str, doc_license: &str) {
-    if !Path::new(".sr").exists() {
+fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str) {
+    if !target_dir.join(".sr").exists() {
         // Add the things that need to be put substituted into the .top file (none at this time)
         let mut globals = liquid::value::Object::new();
         globals.insert("source_license".into(), liquid::value::Value::scalar(source_license.to_owned()));
@@ -340,7 +343,7 @@ fn generate_dot_file(source_license: &str, doc_license: &str) {
         let contents = render_template(".sr.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(".sr", contents)
+        fs::write(target_dir.join(".sr"), contents)
             .expect("Could not write to .sr file.");
     }
     else {
@@ -353,19 +356,23 @@ fn generate_dot_file(source_license: &str, doc_license: &str) {
  * Reads a template to a string so that it can be written to a new components directory structure.
 */
 fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> String {
-    // Figure out where the templates are stored
-    let template_file = env::current_exe()
-        .expect("Could not get sliderule-cli executable directory.");
-
-    let template_file = template_file.parent()
-        .expect("Could not get parent of sliderule-cli executable directory.");
-
-    let template_file = template_file.join("templates").join(template_name);
-
-    // Read the template file into a string so that it can be rendered using Liquid
-    let mut file = fs::File::open(&template_file).expect("Unable to open the file");
     let mut contents = String::new();
-    file.read_to_string(&mut contents).expect("Unable to read the file");
+
+    if template_name == ".sr.liquid" {
+        contents = templates::sr_file_template();
+    }
+    else if template_name == ".gitignore.liquid" {
+        contents = templates::gitignore_template();
+    }
+    else if template_name == "bom_data.yaml.liquid" {
+        contents = templates::bom_data_yaml_template();
+    }
+    else if template_name == "package.json.liquid" {
+        contents = templates::package_json_template();
+    }
+    else if template_name == "README.md.liquid" {
+        contents = templates::readme_template();
+    }
 
     // Render the output of the template using Liquid
     let template = liquid::ParserBuilder::with_liquid()
@@ -645,18 +652,6 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
 }
 
 /*
-* Gets the current working directory for us, and handles any errors.
-*/
-fn get_cwd() -> PathBuf {
-    let path = env::current_dir();
-
-    let cwd = path
-        .expect("Could not get current working directory.");
-
-    cwd
-}
-
-/*
  * Gets the parent directory of the current component
 */
 fn get_parent_dir(target_dir: &Path) -> PathBuf {
@@ -683,14 +678,17 @@ fn get_newline() -> String {
 
 pub mod git_sr;
 pub mod npm_sr;
+pub mod templates;
 
 
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::fs;
     extern crate git2;
     extern crate uuid;
     use std::path::PathBuf;
+    use std::io::prelude::*;
 
     /*
      * Tests whether or not we can accurately find the parent dir of a component dir
@@ -808,6 +806,207 @@ mod tests {
         assert!(license_listing.contains("NotASourceLicense"));
         assert!(license_listing.contains("NotADocLicense"));
         assert!(license_listing.contains("CC-BY-4.0"));
+    }
+
+    #[test]
+    fn test_gitignore_template() {
+        let content = super::templates::gitignore_template();
+
+        assert!(content.contains("# Dependency directories"));
+        assert!(content.contains("node_modules/"));
+        assert!(content.contains("# Distribution directory"));
+        assert!(content.contains("dist/"));
+
+        // Render the template and make sure we got what was expected
+        let mut globals = liquid::value::Object::new();
+
+        let render = super::render_template(".gitignore.liquid", &mut globals);
+
+        assert!(render.contains("# Dependency directories"));
+        assert!(render.contains("node_modules/"));
+        assert!(render.contains("# Distribution directory"));
+        assert!(render.contains("dist/"));
+    }
+
+    #[test]
+    fn test_sr_file_template() {
+        let content = super::templates::sr_file_template();
+
+        assert!(content.contains("source_license: {{source_license}},"));
+        assert!(content.contains("documentation_license: {{doc_license}}"));
+
+        // Render the template and make sure we got was expected
+        let mut globals = liquid::value::Object::new();
+        globals.insert("source_license".into(), liquid::value::Value::scalar("NotASourceLicense"));
+        globals.insert("doc_license".into(), liquid::value::Value::scalar("NotADocLicense"));
+
+        let render = super::render_template(".sr.liquid", &mut globals);
+
+        assert!(render.contains("source_license: NotASourceLicense,"));
+        assert!(render.contains("documentation_license: NotADocLicense"));
+    }
+
+    #[test]
+    fn test_bom_data_yaml_template() {
+        let content = super::templates::bom_data_yaml_template();
+
+        assert!(content.contains("# Bill of Materials Data for {{name}}"));
+        assert!(content.contains("parts:"));
+        assert!(content.contains("    - specific_component_variation"));
+        assert!(content.contains("    notes: ''"));
+        assert!(content.contains("order:"));
+        assert!(content.contains("  -component_1"));
+
+        // Render the template and make sure we got was expected
+        let mut globals = liquid::value::Object::new();
+        globals.insert("name".into(), liquid::value::Value::scalar("TopLevel"));
+
+        let render = super::render_template("bom_data.yaml.liquid", &mut globals);
+
+        assert!(render.contains("# Bill of Materials Data for TopLevel"));
+        assert!(render.contains("parts:"));
+        assert!(render.contains("    - specific_component_variation"));
+        assert!(render.contains("    notes: ''"));
+        assert!(render.contains("order:"));
+        assert!(render.contains("  -component_1"));
+    }
+
+    #[test]
+    fn test_package_json_template() {
+        let content = super::templates::package_json_template();
+
+        assert!(content.contains("  \"name\": \"{{name}}\","));
+        assert!(content.contains("  \"license\": \"{{license}}\","));
+
+        // Render the template and make sure we got was expected
+        let mut globals = liquid::value::Object::new();
+        globals.insert("name".into(), liquid::value::Value::scalar("TopLevel"));
+        globals.insert("license".into(), liquid::value::Value::scalar("(NotASourceLicense AND NotADocLicense)"));
+
+        let render = super::render_template("package.json.liquid", &mut globals);
+
+        assert!(render.contains("  \"name\": \"TopLevel\","));
+        assert!(render.contains("  \"license\": \"(NotASourceLicense AND NotADocLicense)\","));
+    }
+
+    #[test]
+    fn test_readme_template() {
+        let content = super::templates::readme_template();
+
+        assert!(content.contains("# {{name}}"));
+        assert!(content.contains("Developed in [Sliderule](http://sliderule.io) an implementation of the [Distributed OSHW Framework](http://dof.sliderule.io)."));
+
+        // Render the template and make sure we got was expected
+        let mut globals = liquid::value::Object::new();
+        globals.insert("name".into(), liquid::value::Value::scalar("TopLevel"));
+
+        let render = super::render_template("README.md.liquid", &mut globals);
+
+        assert!(render.contains("# TopLevel"));
+        assert!(render.contains("Developed in [Sliderule](http://sliderule.io) an implementation of the [Distributed OSHW Framework](http://dof.sliderule.io)."));
+    }
+
+    #[test]
+    fn test_generate_dot_file() {
+        let temp_dir = env::temp_dir();
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+        let temp_dir = temp_dir.join(test_dir_name);
+
+        // Create the temporary directory we are going to be working with
+        fs::create_dir(&temp_dir)
+            .expect("Could not create temporary directory for test.");
+
+        super::generate_dot_file(&temp_dir, "NotASourceLicense", "NotADocLicense");
+
+        let mut file = fs::File::open(&temp_dir.join(".sr")).expect("Unable to open the sr file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Unable to read the sr file");
+
+        assert!(contents.contains("source_license: NotASourceLicense,"));
+        assert!(contents.contains("documentation_license: NotADocLicense"));
+    }
+
+    #[test]
+    fn test_generate_gitignore() {
+        let temp_dir = env::temp_dir();
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+        let temp_dir = temp_dir.join(test_dir_name);
+
+        // Create the temporary directory we are going to be working with
+        fs::create_dir(&temp_dir)
+            .expect("Could not create temporary directory for test.");
+
+        super::generate_gitignore(&temp_dir);
+
+        let mut file = fs::File::open(&temp_dir.join(".gitignore")).expect("Unable to open the gitignore file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Unable to read the gitignore file");
+
+        assert!(contents.contains("node_modules/"));
+        assert!(contents.contains("dist/"));
+    }
+
+    #[test]
+    fn test_generate_package_json() {
+        let temp_dir = env::temp_dir();
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+        let temp_dir = temp_dir.join(test_dir_name);
+
+        // Create the temporary directory we are going to be working with
+        fs::create_dir(&temp_dir)
+            .expect("Could not create temporary directory for test.");
+
+        super::generate_package_json(&temp_dir, "TopLevel", "NotASourceLicense");
+
+        let mut file = fs::File::open(&temp_dir.join("package.json")).expect("Unable to open the package.json file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+
+        assert!(contents.contains("  \"name\": \"TopLevel\","));
+        assert!(contents.contains("  \"license\": \"NotASourceLicense\","));
+    }
+
+    #[test]
+    fn test_generate_bom() {
+        let temp_dir = env::temp_dir();
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+        let temp_dir = temp_dir.join(test_dir_name);
+
+        // Create the temporary directory we are going to be working with
+        fs::create_dir(&temp_dir)
+            .expect("Could not create temporary directory for test.");
+
+        super::generate_bom(&temp_dir, "TopLevel");
+
+        let mut file = fs::File::open(&temp_dir.join("bom_data.yaml")).expect("Unable to open the bom_data.yaml file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+
+        assert!(contents.contains("# Bill of Materials Data for TopLevel"));
+    }
+
+    #[test]
+    fn test_generate_readme() {
+        let temp_dir = env::temp_dir();
+        let uuid_dir = uuid::Uuid::new_v4();
+        let test_dir_name = format!("temp_{}", uuid_dir);
+        let temp_dir = temp_dir.join(test_dir_name);
+
+        // Create the temporary directory we are going to be working with
+        fs::create_dir(&temp_dir)
+            .expect("Could not create temporary directory for test.");
+
+        super::generate_readme(&temp_dir, "TopLevel");
+
+        let mut file = fs::File::open(&temp_dir.join("README.md")).expect("Unable to open the README.md file");
+        let mut contents = String::new();
+        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+
+        assert!(contents.contains("# TopLevel"));
     }
 
     /*
