@@ -94,12 +94,15 @@ pub fn create_component(target_dir: &Path, name: &String, source_license: &Strin
 /*
  * Uploads any changes to the project to the remote repository.
 */
-pub fn upload_component(target_dir: &Path, message: String, url: String) {
+pub fn upload_component(target_dir: &Path, message: String, url: &String) {
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses(&target_dir);
 
     // Initialize as a repo only if needed
     if !target_dir.join(".git").exists() {
+        env::set_current_dir(&target_dir)
+            .expect("Could not change into target directory.");
+
         // Initialize the git repository and set the remote URL to push to
         git_sr::git_init(&url);
     }
@@ -109,6 +112,9 @@ pub fn upload_component(target_dir: &Path, message: String, url: String) {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
         generate_gitignore(&target_dir);
     }
+
+    env::set_current_dir(&target_dir)
+        .expect("Could not change into target directory.");
     
     // Add all changes, commit and push
     git_sr::git_add_and_commit(message);
@@ -121,32 +127,22 @@ pub fn upload_component(target_dir: &Path, message: String, url: String) {
  * Converts a local component into a remote component, asking for a remote repo to push it to.
 */
 pub fn refactor(target_dir: &Path, name: String, url: String) {
-    let orig_dir = target_dir;
     let component_dir = target_dir.join("components").join(&name);
 
     if component_dir.exists() {
-        // We need to be in the component's directory before running the next commands
-        env::set_current_dir(&component_dir)
-            .expect("Could not change into components directory.");
-
-        // Set the directory up as a git repo and then push the changes to the remote
-        git_sr::git_init(&url);
-        git_sr::git_add_and_commit(String::new());
-
-        // Change back up to the original, top level directory
-        env::set_current_dir(&orig_dir)
-            .expect("Could not change into original parent directory.");
+        // Upload the current component to the remote repo
+        upload_component(&target_dir, String::from("Initial commit, refactoring component"), &url);
 
         // Remove the local component and then install it from the remote using npm
         remove(&target_dir, &name);
-        npm_sr::npm_install(&url);
+        add_remote_component(&target_dir, &url);
+
+        // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
+        amalgamate_licenses(&target_dir);
     }
     else {
         panic!("ERROR: The component does not exist in the components directory.");
     }
-
-    // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
 
     println!("Finished refactoring local component to remote repository.");
 }
@@ -180,8 +176,7 @@ pub fn remove(target_dir: &Path, name: &str) {
             .expect("ERROR: not able to delete component directory.");
     }
     else {
-        // Use npm to remove the remote component
-        npm_sr::npm_uninstall(name);
+        remove_remote_component(&target_dir, name);
     }
 
     // Make sure that our package.json file is updated with all the license info
@@ -207,6 +202,9 @@ pub fn change_licenses(target_dir: &Path, source_license: &String, doc_license: 
  * Adds a remote component via URL to node_modules.
 */
 pub fn add_remote_component(target_dir: &Path, url: &str) {
+    env::set_current_dir(&target_dir)
+        .expect("Could not change into target directory.");
+
     npm_sr::npm_install(&url);
 
     // Make sure that our package.json file is updated with all the license info
@@ -214,11 +212,22 @@ pub fn add_remote_component(target_dir: &Path, url: &str) {
 }
 
 /*
+ * Removes a remote component via the name.
+ */
+pub fn remove_remote_component(target_dir: &Path, name: &str) {
+    env::set_current_dir(&target_dir)
+        .expect("Could not change into target directory.");
+
+    // Use npm to remove the remote component
+    npm_sr::npm_uninstall(name);
+}
+
+/*
  * Downloads (copies) a component from a remote repository.
 */
 pub fn download_component(target_dir: &Path, url: &str) {
-    // TODO: Handle this directory change properly
-    println!("{}", target_dir.display());
+    env::set_current_dir(&target_dir)
+        .expect("Could not change into target directory.");
 
     git_sr::git_clone(url);
 }
@@ -227,6 +236,9 @@ pub fn download_component(target_dir: &Path, url: &str) {
     * Updates all remote components in node_modules
     */
 pub fn update_dependencies(target_dir: &Path) {
+    env::set_current_dir(&target_dir)
+        .expect("Could not change into target directory.");
+
     npm_sr::npm_install("");
 
     // Make sure that our package.json file is updated with all the license info
@@ -238,6 +250,9 @@ pub fn update_dependencies(target_dir: &Path) {
 */
 pub fn update_local_component(target_dir: &Path) {
     if target_dir.join(".git").exists() {
+        env::set_current_dir(&target_dir)
+            .expect("Could not change into target directory.");
+
         git_sr::git_pull();
     }
 
