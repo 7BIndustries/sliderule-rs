@@ -1028,7 +1028,8 @@ mod tests {
      * Sets up a test directory for our use.
      */
     fn set_up(temp_dir: &PathBuf, dir_name: &str) -> PathBuf {
-        let url = format!("git://127.0.0.1/{}", dir_name);
+        // let url = format!("git://127.0.0.1/{}", dir_name);
+        let url = "https://github.com/jmwright/toplevel.git";
 
         let uuid_dir = uuid::Uuid::new_v4();
         let test_dir_name = format!("temp_{}", uuid_dir);
