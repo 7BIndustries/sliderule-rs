@@ -12,3 +12,17 @@ If [Rust is installed](https://www.rust-lang.org/en-US/install.html), running th
 ```
 cargo test
 ```
+
+## Developers
+
+This is a section for developers who want to use this crate.
+
+### Exit Codes
+#### General
+- 1 - The component being accessed is not associated with a repository
+#### Git
+- 100 - Could not open local repository directory
+- 101 - Could not find remote reference
+- 102 - Could not download from remote
+- 103 - Could not update the references to point to the right commits
+#### npm
