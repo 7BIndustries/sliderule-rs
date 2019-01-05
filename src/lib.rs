@@ -3,11 +3,20 @@
 extern crate liquid;
 extern crate walkdir;
 extern crate os_info;
+extern crate git2;
+#[macro_use]
+extern crate serde_derive;
 
 use std::env;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::io::prelude::*;
+
+pub struct SROutput {
+    status: i32,
+    stdout: Vec<String>,
+    stderr: Vec<String>
+}
 
 
 /*
@@ -248,16 +257,29 @@ pub fn update_dependencies(target_dir: &Path) {
 /*
  * Updates the local component who's directory we're in
 */
-pub fn update_local_component(target_dir: &Path) {
-    if target_dir.join(".git").exists() {
-        env::set_current_dir(&target_dir)
-            .expect("Could not change into target directory.");
+pub fn update_local_component(target_dir: &Path) ->  SROutput {
+    let mut output = SROutput {status: 0, stderr: Vec::new(), stdout: Vec::new()};
 
-        git_sr::git_pull();
+    if target_dir.join(".git").exists() {
+        output = git_sr::git_pull(target_dir);
+
+        // Make sure that our package.json file is updated with all the license info
+        amalgamate_licenses(&target_dir);
+
+        // Give the user an idea of whether the update was successful or not
+        if output.status == 0 {
+            output.stdout.push(String::from("Component updated successfully."));
+        }
+        else {
+            output.stdout.push(String::from("Component not updated successfully."));
+        }
+    }
+    else {
+        output.status = 1;
+        output.stderr.push(String::from("Component is not set up as a repository, cannot update it."));
     }
 
-    // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    output
 }
 
 
@@ -1022,6 +1044,21 @@ mod tests {
         file.read_to_string(&mut contents).expect("Unable to read the package.json file");
 
         assert!(contents.contains("# TopLevel"));
+    }
+
+    #[test]
+    fn test_update_local_component() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let output = super::update_local_component(&test_dir.join("toplevel"));
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+        assert!(output.stderr.is_empty());
+        assert_eq!(output.stdout[1], "Component updated successfully.");
     }
 
     /*
