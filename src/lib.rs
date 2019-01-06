@@ -1070,6 +1070,10 @@ mod tests {
 
         let uuid_dir = uuid::Uuid::new_v4();
         let test_dir_name = format!("temp_{}", uuid_dir);
+        
+        // Create the temporary test directory
+        fs::create_dir(temp_dir.join(&test_dir_name))
+            .expect("Unable to create temporary directory.");
 
        match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join(dir_name)) {
             Ok(repo) => repo,
