@@ -713,6 +713,35 @@ fn get_newline() -> String {
     }
 }
 
+/*
+    * Figures out what depth the component is at.
+    * 0 = A top level component is probably being created
+    * 1 = A top level component with no parent
+    * 2 = A sub-component at depth n
+    */
+pub fn get_level(target_dir: &Path) -> u8 {
+    let level: u8;
+
+    // Allows us to check if there is a .sr file in the current directory
+    let current_file = target_dir.join(".sr");
+
+    // Allows us to check if there is a .sr file in the parent directory
+    let parent_file = target_dir.join(".sr");
+
+    // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
+    if !parent_file.exists() && !current_file.exists() {
+        level = 0;
+    }
+    else if !parent_file.exists() && current_file.exists() {
+        level = 1;
+    }
+    else {
+        level = 2;
+    }
+
+    level
+}
+
 pub mod git_sr;
 pub mod npm_sr;
 pub mod templates;
