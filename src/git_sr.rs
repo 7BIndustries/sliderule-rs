@@ -1,4 +1,11 @@
 use std::process::Command;
+use std::path::Path;
+use git2::{Repository, RemoteCallbacks, AutotagOption, FetchOptions};
+
+#[derive(Deserialize)]
+struct Args {
+    arg_remote: Option<String>,
+}
 
 /*
 * Uses the installed git command to initialize a project repo.
@@ -87,22 +94,67 @@ pub fn git_add_and_commit(message: String) {
     }
 }
 
-
 /*
 * Pulls latest updates from a component's git repo.
 */
-pub fn git_pull() {
-    let output = match Command::new("git").args(&["pull", "origin", "master"]).output() {
-        Ok(out) => {
-            println!("Pulled changes from component repository.");
-            out
-        },
-        Err(e) => panic!("ERROR: Unable to pull changes from component repository: {}", e)
+pub fn git_pull(target_dir: &Path) -> super::SROutput {
+    let mut output = super::SROutput { status: 0, stdout: Vec::new(), stderr: Vec::new() };
+
+    // Maybe later we will support other branches
+    let args = Args { arg_remote: Some(String::from("origin")) };
+
+    // Open the local repo
+    let repo = match Repository::open(target_dir) {
+        Ok(repo) => repo,
+        Err(e) => {
+            output.status = 100;
+            output.stderr.push(format!("Could not open local repository directory: {}", e));
+            return output;
+        }
     };
 
-    if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
-    }
+    // Try to find the remote reference so that we can use it to fetch the changes
+    let remote = args.arg_remote.as_ref().map(|s| &s[..]).unwrap_or("origin");
+    let mut remote = match repo.find_remote(remote) {
+        Ok(rem) => rem,
+        Err(_) => match repo.remote_anonymous(remote) {
+            Ok(rem) => rem,
+            Err(e) => {
+                output.status = 101;
+                output.stderr.push(format!("Could not find remote reference: {}", e));
+                return output;
+            }
+        }
+    };
+
+    // Download any changes
+    let mut fo = FetchOptions::new();
+    match remote.download(&[], Some(&mut fo)) {
+        //.expect("ERROR: Could not download from remote.");
+        Ok(rem) => rem,
+        Err(e) => {
+            output.status = 102;
+            output.stderr.push(format!("Could not download from remote: {}", e));
+        }
+    };
+
+    // Disconnect the underlying connection to prevent from idling.
+    remote.disconnect();
+
+    // Update the references in the remote's namespace to point to the right commits
+    match remote.update_tips(None, true, AutotagOption::Unspecified, None) {
+        //.expect("ERROR: Could not update the references to point to the right commits.");
+        Ok(rem) => rem,
+        Err(e) => {
+            output.status = 103;
+            output.stderr.push(format!("Could not update the references to point to the right commits: {}", e));
+        }
+    };
+
+    // Let the user know that we finished
+    output.stdout.push(String::from("git pull complete"));
+
+    output
 }
 
 
