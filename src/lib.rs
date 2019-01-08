@@ -109,11 +109,8 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) {
 
     // Initialize as a repo only if needed
     if !target_dir.join(".git").exists() {
-        env::set_current_dir(&target_dir)
-            .expect("Could not change into target directory.");
-
         // Initialize the git repository and set the remote URL to push to
-        git_sr::git_init(&url);
+        git_sr::git_init(target_dir, &url);
     }
 
     // Create the gitignore file only if we need to
@@ -121,12 +118,9 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
         generate_gitignore(&target_dir);
     }
-
-    env::set_current_dir(&target_dir)
-        .expect("Could not change into target directory.");
     
     // Add all changes, commit and push
-    git_sr::git_add_and_commit(message);
+    git_sr::git_add_and_commit(target_dir, message);
 
     println!("Done uploading component.");
 }
@@ -211,10 +205,7 @@ pub fn change_licenses(target_dir: &Path, source_license: &String, doc_license: 
  * Adds a remote component via URL to node_modules.
 */
 pub fn add_remote_component(target_dir: &Path, url: &str) {
-    env::set_current_dir(&target_dir)
-        .expect("Could not change into target directory.");
-
-    npm_sr::npm_install(&url);
+    npm_sr::npm_install(target_dir, &url);
 
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses(&target_dir);
@@ -224,31 +215,22 @@ pub fn add_remote_component(target_dir: &Path, url: &str) {
  * Removes a remote component via the name.
  */
 pub fn remove_remote_component(target_dir: &Path, name: &str) {
-    env::set_current_dir(&target_dir)
-        .expect("Could not change into target directory.");
-
     // Use npm to remove the remote component
-    npm_sr::npm_uninstall(name);
+    npm_sr::npm_uninstall(target_dir, name);
 }
 
 /*
  * Downloads (copies) a component from a remote repository.
 */
 pub fn download_component(target_dir: &Path, url: &str) {
-    env::set_current_dir(&target_dir)
-        .expect("Could not change into target directory.");
-
-    git_sr::git_clone(url);
+    git_sr::git_clone(target_dir, url);
 }
 
 /*
     * Updates all remote components in node_modules
     */
 pub fn update_dependencies(target_dir: &Path) {
-    env::set_current_dir(&target_dir)
-        .expect("Could not change into target directory.");
-
-    npm_sr::npm_install("");
+    npm_sr::npm_install(target_dir, "");
 
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses(&target_dir);

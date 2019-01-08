@@ -1,6 +1,6 @@
 use std::process::Command;
 use std::path::Path;
-use git2::{Repository, RemoteCallbacks, AutotagOption, FetchOptions};
+use git2::{Repository, AutotagOption, FetchOptions}; //RemoteCallbacks
 
 #[derive(Deserialize)]
 struct Args {
@@ -10,11 +10,11 @@ struct Args {
 /*
 * Uses the installed git command to initialize a project repo.
 */
-pub fn git_init(url: &str) {
+pub fn git_init(target_dir: &Path, url: &str) {
     println!("Working...");
 
     // Initialize the current directory as a git repo
-    let output = match Command::new("git").args(&["init"]).output() {
+    let output = match Command::new("git").args(&["init"]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("git repository initialized for project.");
             out
@@ -34,7 +34,7 @@ pub fn git_init(url: &str) {
     }
 
     // Add the remote URL
-    let output = match Command::new("git").args(&["remote", "add", "origin", url]).output() {
+    let output = match Command::new("git").args(&["remote", "add", "origin", url]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Done initializing git repository for project.");
             out
@@ -52,9 +52,9 @@ pub fn git_init(url: &str) {
 /*
 * Adds, commits and pushes any changes to the remote git repo.
 */
-pub fn git_add_and_commit(message: String) {
+pub fn git_add_and_commit(target_dir: &Path, message: String) {
     // git add .
-    let output = match Command::new("git").args(&["add", "."]).output() {
+    let output = match Command::new("git").args(&["add", "."]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Changes staged using git.");
             out
@@ -67,7 +67,7 @@ pub fn git_add_and_commit(message: String) {
     }
 
     // git commit -m [message]
-    let output = match Command::new("git").args(&["commit", "-m", &message]).output() {
+    let output = match Command::new("git").args(&["commit", "-m", &message]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Changes committed using git.");
             out
@@ -80,7 +80,7 @@ pub fn git_add_and_commit(message: String) {
     }
 
     // git push origin master
-    let output = match Command::new("git").args(&["push", "origin", "master"]).output() {
+    let output = match Command::new("git").args(&["push", "origin", "master"]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Changes pushed using git.");
             out
@@ -161,8 +161,8 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
 /*
 * Interface to the git command to download a component from a repo.
 */
-pub fn git_clone(url: &str) {
-    let output = match Command::new("git").args(&["clone", "--recursive", url]).output() {
+pub fn git_clone(target_dir: &Path, url: &str) {
+    let output = match Command::new("git").args(&["clone", "--recursive", url]).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Successfully cloned component repository.");
             out

@@ -1,11 +1,12 @@
 extern crate os_info;
 
+use std::path::Path;
 use std::process::Command;
 
 /*
 * Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
 */
-pub fn npm_install(url: &str) {
+pub fn npm_install(target_dir: &Path, url: &str) {
     let mut vec = Vec::new();
     vec.push("install");
     
@@ -25,7 +26,7 @@ pub fn npm_install(url: &str) {
 
     println!("Working...");
 
-    let output = match Command::new(&cmd_name).args(&vec).output() {
+    let output = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
         Ok(out) => {
             if !url.is_empty() {
                 println!("Component installed from remote repository.");
@@ -54,7 +55,7 @@ pub fn npm_install(url: &str) {
 /*
 * Uses the npm command to remove a remote component.
 */
-pub fn npm_uninstall(name: &str) {
+pub fn npm_uninstall(target_dir: &Path, name: &str) {
     let mut vec = Vec::new();
     vec.push("uninstall");
     
@@ -75,7 +76,7 @@ pub fn npm_uninstall(name: &str) {
     println!("Working...");
 
     // Attempt to install the component using npm
-    match Command::new(&cmd_name).args(&vec).output() {
+    match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
         Ok(out) => {
             println!("Component uninstalled using npm.");
             out
