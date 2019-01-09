@@ -820,8 +820,15 @@ mod tests {
         super::amalgamate_licenses(&test_dir.join("toplevel"));
 
         // Make sure that all of the licenses were outlined correctly
-        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
-        assert_eq!(name, "(Unlicense AND NotASourceLicense AND CC0-1.0 AND NotADocLicense AND CC-BY-4.0)");
+        let license = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
+        assert!(license.contains("Unlicense"));
+        assert!(license.contains("CC0-1.0"));
+        assert!(license.contains("NotASourceLicense"));
+        assert!(license.contains("NotADocLicense"));
+        assert!(license.contains("CC-BY-4.0"));
+        assert!(license.contains("AND"));
+        assert!(license.contains("("));
+        assert!(license.contains(")"));
     }
 
     #[test]
