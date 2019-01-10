@@ -1101,6 +1101,9 @@ mod tests {
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
+        for line in output.stderr {
+            println!("{}", line);
+        }
 
         assert!(output.stdout[0].contains("up to date"));
     }
