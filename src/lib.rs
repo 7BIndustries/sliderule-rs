@@ -1107,7 +1107,7 @@ mod tests {
         assert_eq!(0, output.status);
         assert_eq!(0, output.status);
 
-        assert!(output.stdout[0].contains("up to date"));
+        assert!(output.stdout[1].contains("Dependencies were updated successfully."));
     }
 
     /*
