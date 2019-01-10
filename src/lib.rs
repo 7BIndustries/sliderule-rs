@@ -13,9 +13,10 @@ use std::path::{Path, PathBuf};
 use std::io::prelude::*;
 
 pub struct SROutput {
-    status: i32,
-    stdout: Vec<String>,
-    stderr: Vec<String>
+    pub status: i32,
+    pub wrapped_status: i32,
+    pub stdout: Vec<String>,
+    pub stderr: Vec<String>
 }
 
 
@@ -229,18 +230,27 @@ pub fn download_component(target_dir: &Path, url: &str) {
 /*
     * Updates all remote components in node_modules
     */
-pub fn update_dependencies(target_dir: &Path) {
-    npm_sr::npm_install(target_dir, "");
+pub fn update_dependencies(target_dir: &Path) -> SROutput {
+    let mut output = npm_sr::npm_install(target_dir, "");
+
+    if output.status != 0 || output.wrapped_status != 0 {
+        output.stderr.push(String::from("ERROR: Dependencies were not successfully updated"));
+    }
+    else {
+        output.stdout.push(String::from("Dependencies were updated successfully."));
+    }
 
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses(&target_dir);
+
+    output
 }
 
 /*
  * Updates the local component who's directory we're in
 */
 pub fn update_local_component(target_dir: &Path) ->  SROutput {
-    let mut output = SROutput {status: 0, stderr: Vec::new(), stdout: Vec::new()};
+    let mut output = SROutput {status: 0, wrapped_status: 0, stderr: Vec::new(), stdout: Vec::new()};
 
     if target_dir.join(".git").exists() {
         output = git_sr::git_pull(target_dir);
@@ -258,7 +268,7 @@ pub fn update_local_component(target_dir: &Path) ->  SROutput {
     }
     else {
         output.status = 1;
-        output.stderr.push(String::from("Component is not set up as a repository, cannot update it."));
+        output.stderr.push(String::from("ERROR: Component is not set up as a repository, cannot update it."));
     }
 
     output
@@ -1075,8 +1085,24 @@ mod tests {
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
-        // assert!(output.stderr.is_empty());
-        // assert_eq!(output.stdout[1], "Component updated successfully.");
+
+        assert_eq!(output.stdout[0].trim(), "Already up to date.");
+        assert_eq!(output.stdout[1], "Component updated successfully.");
+    }
+
+    #[test]
+    fn test_update_dependencies() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let output = super::update_dependencies(&test_dir.join("toplevel"));
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        assert!(output.stdout[0].contains("up to date"));
     }
 
     /*

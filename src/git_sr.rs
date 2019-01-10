@@ -97,7 +97,7 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) {
 * Pulls latest updates from a component's git repo.
 */
 pub fn git_pull(target_dir: &Path) -> super::SROutput {
-    let mut output = super::SROutput { status: 0, stdout: Vec::new(), stderr: Vec::new() };
+    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
 
     // Run the pull command
     let stdoutput = match Command::new("git").args(&["pull", "origin", "master"]).current_dir(target_dir).output() {
@@ -106,7 +106,7 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
         },
         Err(e) => {
             output.status = 100;
-            output.stderr.push(format!("Pull from remote repository not successful: {}", e));
+            output.stderr.push(format!("ERROR: Pull from remote repository not successful: {}", e));
             return output;
         }
     };
@@ -114,12 +114,12 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
     // If we didn't get any output, the command is probably waiting on something
     if stdoutput.stdout.is_empty() {
         output.status = 100;
-        output.stderr.push(format!("Pull failed, may be waiting for username/password or passphrase."));
+        output.stderr.push(format!("ERROR: Pull failed, may be waiting for username/password or passphrase."));
     }
 
     // Collect all of the other stdout entries
-    for val in stdoutput.stdout {
-        output.stdout.push(val.to_string());
+    if !stdoutput.stdout.is_empty() {
+        output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
     }
 
     // If there were errors, make sure we collect them
@@ -127,8 +127,10 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
         output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
-    // Let the user know that we finished
-    output.stdout.push(String::from("git pull complete"));
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
 
     output
 }

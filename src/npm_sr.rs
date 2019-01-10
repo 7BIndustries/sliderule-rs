@@ -6,7 +6,8 @@ use std::process::Command;
 /*
 * Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
 */
-pub fn npm_install(target_dir: &Path, url: &str) {
+pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
+    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
     let mut vec = Vec::new();
     vec.push("install");
     
@@ -24,31 +25,50 @@ pub fn npm_install(target_dir: &Path, url: &str) {
         vec.push(url);
     }
 
-    println!("Working...");
-
-    let output = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
+    // Try to run the npm command line and gather the output and errors so that they can be used later
+    let stdoutput = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
         Ok(out) => {
-            if !url.is_empty() {
-                println!("Component installed from remote repository.");
-            }
-            else {
-                println!("Sliderule project updated.");
-            }
-
             out
         },
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
-                panic!("ERROR: `npm` was not found, please install it.");
+                output.status = 200;
+                output.stderr.push(String::from("ERROR: `npm` was not found, please install it."));
+                return output;
             } else {
-                panic!("ERROR: Could not install component from remote repository: {}", e);
+                output.status = 201;
+                output.stderr.push(format!("ERROR: Could not install component from remote repository: {}", e));
+                return output;
             }
         }
     };
 
-    if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+    // If we don't get any errors, assume that the component was installed successfully
+    if stdoutput.stderr.is_empty() {
+        if !url.is_empty() {
+            output.stdout.push(String::from("Component installed from remote repository."));
+        }
+        else {
+            output.stdout.push(String::from("Sliderule project updated."));
+        }
     }
+
+    // Collect all of the other stdout entries
+    if !stdoutput.stdout.is_empty() {
+        output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+    }
+
+    // If there were errors, make sure we collect them
+    if !stdoutput.stderr.is_empty() {
+        output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+    }
+
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
+
+    output
 }
 
 
