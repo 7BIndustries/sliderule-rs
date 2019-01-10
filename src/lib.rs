@@ -236,7 +236,8 @@ pub fn update_dependencies(target_dir: &Path) -> SROutput {
     if output.status != 0 || output.wrapped_status != 0 {
         output.stderr.push(String::from("ERROR: Dependencies were not successfully updated"));
     }
-    else {
+    
+    if output.status == 0 && output.wrapped_status == 0 {
         output.stdout.push(String::from("Dependencies were updated successfully."));
     }
 
