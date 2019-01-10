@@ -118,9 +118,7 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
     }
 
     // Collect all of the other stdout entries
-    if !stdoutput.stdout.is_empty() {
-        output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
-    }
+    output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
     if !stdoutput.stderr.is_empty() {
