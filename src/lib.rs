@@ -1099,11 +1099,13 @@ mod tests {
 
         let output = super::update_dependencies(&test_dir.join("toplevel"));
 
-        // We should not have gotten an error
-        assert_eq!(0, output.status);
-        for line in output.stderr {
+        for line in &output.stdout {
             println!("{}", line);
         }
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+        assert_eq!(0, output.status);
 
         assert!(output.stdout[0].contains("up to date"));
     }
