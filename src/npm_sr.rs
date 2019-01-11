@@ -16,7 +16,8 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
 
     // Set the command name properly based on which OS the user is running
     if info.os_type() == os_info::Type::Windows {
-        cmd_name = r"C:\Program Files\nodejs\npm.cmd";
+        // cmd_name = r"C:\Program Files\nodejs\npm.cmd";
+        cmd_name = "npm";
     }
 
     // If no URL was specified, just npm update the whole project
