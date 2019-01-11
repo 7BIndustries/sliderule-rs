@@ -1,5 +1,6 @@
 image: Visual Studio 2017
 environment:
+  nodejs_version: "6"
   RUSTFLAGS: -Ctarget-feature=+crt-static
   matrix:
   - TARGET: x86_64-pc-windows-msvc
