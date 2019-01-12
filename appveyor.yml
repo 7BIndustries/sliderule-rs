@@ -1,6 +1,6 @@
 image: Visual Studio 2017
 environment:
-  nodejs_version: "6"
+  nodejs_version: "Current"
   RUSTFLAGS: -Ctarget-feature=+crt-static
   matrix:
   - TARGET: x86_64-pc-windows-msvc
@@ -52,6 +52,9 @@ install:
   # set cargo features for MSI if requested (otherwise empty string)
   - set FEATURES=
   - if defined BUILD_MSI set FEATURES=--features msi-installed
+
+  # Node
+  - ps: Install-Product node $env:nodejs_version
 
   # let's see what we got
   - where gcc rustc cargo
