@@ -3,6 +3,33 @@ extern crate os_info;
 use std::path::Path;
 use std::process::Command;
 
+fn find_npm_windows() -> String {
+    // Run the where command to attempt to find the npm.cmd script
+    let output = match Command::new("where.exe").args(&["npm.cmd"]).output() {
+        Ok(output) => {
+            output
+        },
+        Err(_) => {
+            println!("Could not run where.exe which is needed for this CLI to work.");
+            std::process::exit(2);
+        }
+    };
+
+    let mut output_str = String::from("C:\\Program Files\\nodejs\\npm.cmd");
+
+    // If there is not output, there will be no command path to extract
+    if !output.stdout.is_empty() {
+        // Convert the output into a string iterator that we can work with
+        let lines = String::from_utf8_lossy(&output.stdout);
+        let lines: Vec<&str> = lines.split("\r\n").collect();
+
+        // Take just the first line
+        output_str = lines[0].trim().to_string();
+    }
+
+    output_str
+}
+
 /*
 * Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
 */
@@ -12,12 +39,11 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
     vec.push("install");
     
     let info = os_info::get();
-    let mut cmd_name = "npm";
+    let mut cmd_name = String::from("npm");
 
     // Set the command name properly based on which OS the user is running
     if info.os_type() == os_info::Type::Windows {
-        // cmd_name = r"C:\Program Files\nodejs\npm.cmd";
-        cmd_name = "npm";
+        cmd_name = find_npm_windows(); //r"C:\Program Files\nodejs\npm.cmd";
     }
 
     // If no URL was specified, just npm update the whole project
