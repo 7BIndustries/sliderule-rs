@@ -1,7 +1,6 @@
 use std::process::Command;
 use std::path::Path;
 
-#[derive(Deserialize)]
 struct Args {
     arg_remote: Option<String>,
 }

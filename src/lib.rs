@@ -3,9 +3,6 @@
 extern crate liquid;
 extern crate walkdir;
 extern crate os_info;
-extern crate git2;
-#[macro_use]
-extern crate serde_derive;
 
 use std::env;
 use std::fs;
