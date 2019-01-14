@@ -2,6 +2,7 @@
 
 [![Travis Build Status](https://travis-ci.org/7BIndustries/sliderule-rs.svg?branch=master)](https://ci.appveyor.com/project/jmwright/sliderule-rs)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/b2cvxvvv8irflqgu/branch/master?svg=true)](https://ci.appveyor.com/project/jmwright/sliderule-rs)
+[![codecov](https://codecov.io/gh/7BIndustries/sliderule-rs/branch/master/graph/badge.svg)](https://codecov.io/gh/7BIndustries/sliderule-rs)
 
 ## Introduction
 Rust crate that encapsulates an implementation of the Distributed OSHW (Open Source Hardware) Framework [DOF](https://github.com/Mach30/dof) being developed by [Mach 30](http://mach30.org/).
