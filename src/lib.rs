@@ -1101,6 +1101,10 @@ mod tests {
             println!("{}", line);
         }
 
+        for line in &output.stderr {
+            println!("{}", line);
+        }
+
         // We should not have gotten an error
         assert_eq!(0, output.status);
         assert_eq!(0, output.status);
