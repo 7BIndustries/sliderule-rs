@@ -76,7 +76,7 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
             output.stdout.push(String::from("Component installed from remote repository."));
         }
         else {
-            output.stdout.push(String::from("Sliderule project updated."));
+            output.stdout.push(String::from("Component successfully installed from remote repository."));
         }
     }
 
@@ -100,16 +100,17 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
 /*
 * Uses the npm command to remove a remote component.
 */
-pub fn npm_uninstall(target_dir: &Path, name: &str) {
+pub fn npm_uninstall(target_dir: &Path, name: &str) -> super::SROutput {
+    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
     let mut vec = Vec::new();
     vec.push("uninstall");
     
     let info = os_info::get();
-    let mut cmd_name = "npm";
+    let mut cmd_name = String::from("npm");
 
     // Set the command name properly based on which OS the user is running
     if info.os_type() == os_info::Type::Windows {
-        cmd_name = r"C:\Program Files\nodejs\npm.cmd";
+        cmd_name = find_npm_windows();
     }
 
     // If no URL was specified, just npm update the whole project
@@ -118,24 +119,41 @@ pub fn npm_uninstall(target_dir: &Path, name: &str) {
         vec.push(name);
     }
 
-    println!("Working...");
-
     // Attempt to install the component using npm
-    match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
+    let stdoutput = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
         Ok(out) => {
-            println!("Component uninstalled using npm.");
             out
         },
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
-                panic!("ERROR: `npm` was not found, please install it.");
+                output.status = 200;
+                output.stderr.push(String::from("ERROR: `npm` was not found, please install it."));
+                return output;
             } else {
-                panic!("ERROR: Could not install component from remote repository: {}", e);
+                output.status = 202;
+                output.stderr.push(format!("ERROR: Could not uninstall component from remote repository: {}", e));
+                return output;
             }
         }
     };
 
-    // if !output.stderr.is_empty() {
-    //     eprintln!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
-    // }
+    // If we don't get any errors, assume that the component was installed successfully
+    if stdoutput.stderr.is_empty() {
+        output.stdout.push(String::from("Component successfully uninstalled from remote repository."));
+    }
+
+    // Collect all of the other stdout entrie
+    output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+
+    // If there were errors, make sure we collect them
+    if !stdoutput.stderr.is_empty() {
+        output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+    }
+
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
+
+    output
 }

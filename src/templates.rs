@@ -99,7 +99,7 @@ extern crate os_info;
  	contents
  }
 
- /*
+/*
  * Returns the Liquid template text for the .sr file
  */
  pub fn sr_file_template() -> String {
@@ -113,7 +113,7 @@ extern crate os_info;
  	contents
  }
 
- /*
+/*
  * Gets the line ending that's appropriate for the OS we are running on.
  */
 fn get_newline() -> String {
@@ -121,8 +121,7 @@ fn get_newline() -> String {
 
     if info.os_type() == os_info::Type::Windows {
         String::from("\r\n")
-    }
-    else {
+    } else {
         String::from("\n")
     }
 }

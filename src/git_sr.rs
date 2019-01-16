@@ -112,7 +112,7 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
 
     // If we didn't get any output, the command is probably waiting on something
     if stdoutput.stdout.is_empty() {
-        output.status = 100;
+        output.status = 101;
         output.stderr.push(format!("ERROR: Pull failed, may be waiting for username/password or passphrase."));
     }
 
@@ -136,16 +136,38 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
 /*
 * Interface to the git command to download a component from a repo.
 */
-pub fn git_clone(target_dir: &Path, url: &str) {
-    let output = match Command::new("git").args(&["clone", "--recursive", url]).current_dir(target_dir).output() {
+pub fn git_clone(target_dir: &Path, url: &str) -> super::SROutput {
+    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
+
+    let stdoutput = match Command::new("git").args(&["clone", "--recursive", url]).current_dir(target_dir).output() {
         Ok(out) => {
-            println!("Successfully cloned component repository.");
             out
         },
-        Err(e) => panic!("ERROR: Unable to clone component repository: {}", e)
+        Err(e) => {
+            output.status = 102;
+            output.stderr.push(format!("ERROR: Unable to clone component repository: {}", e));
+            return output;
+        }
     };
 
-    if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+    // If we didn't get any output, the command is probably waiting on something
+    // if stdoutput.stdout.is_empty() {
+    //     output.status = 101;
+    //     output.stderr.push(format!("ERROR: Pull failed, may be waiting for username/password or passphrase."));
+    // }
+
+    // Collect all of the other stdout entries
+    output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+
+    // If there were errors, make sure we collect them
+    if !stdoutput.stderr.is_empty() {
+        output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
+
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
+
+    output
 }

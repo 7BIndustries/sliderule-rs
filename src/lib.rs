@@ -212,16 +212,36 @@ pub fn add_remote_component(target_dir: &Path, url: &str) {
 /*
  * Removes a remote component via the name.
  */
-pub fn remove_remote_component(target_dir: &Path, name: &str) {
+pub fn remove_remote_component(target_dir: &Path, name: &str) -> SROutput {
     // Use npm to remove the remote component
-    npm_sr::npm_uninstall(target_dir, name);
+    let mut output = npm_sr::npm_uninstall(target_dir, name);
+
+    if output.status != 0 || output.wrapped_status != 0 {
+        output.stderr.push(String::from("ERROR: Component was not successfully removed"));
+    }
+    
+    if output.status == 0 && output.wrapped_status == 0 {
+        output.stdout.push(String::from("Component was removed successfully."));
+    }
+
+    output
 }
 
 /*
  * Downloads (copies) a component from a remote repository.
 */
-pub fn download_component(target_dir: &Path, url: &str) {
-    git_sr::git_clone(target_dir, url);
+pub fn download_component(target_dir: &Path, url: &str) -> SROutput {
+    let mut output = git_sr::git_clone(target_dir, url);
+
+    if output.status != 0 || output.wrapped_status != 0 {
+        output.stderr.push(String::from("ERROR: Component was not successfully downloaded"));
+    }
+    
+    if output.status == 0 && output.wrapped_status == 0 {
+        output.stdout.push(String::from("Component was downloaded successfully."));
+    }
+
+    output
 }
 
 /*
@@ -1097,19 +1117,46 @@ mod tests {
 
         let output = super::update_dependencies(&test_dir.join("toplevel"));
 
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-
-        for line in &output.stderr {
-            println!("{}", line);
-        }
-
         // We should not have gotten an error
-        assert_eq!(0, output.status);
         assert_eq!(0, output.status);
 
         assert!(output.stdout[1].contains("Dependencies were updated successfully."));
+    }
+
+    #[test]
+    fn test_download_component() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let output = super::download_component(&test_dir.join("toplevel"), "https://github.com/jmwright/toplevel.git");
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        assert!(output.stdout[1].contains("Component was downloaded successfully."));
+    }
+
+    #[test]
+    fn test_remove_remote_component() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let output = super::remove_remote_component(&test_dir.join("toplevel"), "blink_firmare");
+
+        for line in &output.stdout {
+            println!("{}", line);
+        }
+        for line in &output.stderr {
+            println!("{}", line);
+        }
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        assert!(output.stdout[1].contains("Component was removed successfully."));
     }
 
     /*

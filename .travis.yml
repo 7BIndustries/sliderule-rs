@@ -22,6 +22,11 @@ before_cache: |
     RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
   fi
 
+script:
+- cargo clean
+- cargo build
+- cargo test
+
 after_success: |
   if [[ "$TRAVIS_RUST_VERSION" == nightly ]]; then
     # coveralls.io
