@@ -22,7 +22,11 @@ before_cache: |
     RUSTFLAGS="--cfg procmacro2_semver_exempt" cargo install cargo-tarpaulin -f
   fi
 
+before_script:
+- rustup component add rustfmt
+
 script:
+- cargo fmt --all -- --check
 - cargo clean
 - cargo build
 - cargo test

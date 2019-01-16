@@ -1,26 +1,30 @@
 #![allow(dead_code)]
 
 extern crate liquid;
-extern crate walkdir;
 extern crate os_info;
+extern crate walkdir;
 
 use std::env;
 use std::fs;
-use std::path::{Path, PathBuf};
 use std::io::prelude::*;
+use std::path::{Path, PathBuf};
 
 pub struct SROutput {
     pub status: i32,
     pub wrapped_status: i32,
     pub stdout: Vec<String>,
-    pub stderr: Vec<String>
+    pub stderr: Vec<String>,
 }
-
 
 /*
  * Create a new Sliderule component or convert an existing project to being a Sliderule project.
 */
-pub fn create_component(target_dir: &Path, name: &String, source_license: &String, doc_license: &String) {
+pub fn create_component(
+    target_dir: &Path,
+    name: &String,
+    source_license: &String,
+    doc_license: &String,
+) {
     // let source_license: String;
     // let doc_license: String;
 
@@ -30,52 +34,42 @@ pub fn create_component(target_dir: &Path, name: &String, source_license: &Strin
     // This is a top level component (project)
     if target_dir.join(".sr").exists() {
         component_dir = target_dir.join("components").join(name);
-    }
-    else {
+    } else {
         component_dir = target_dir.join(name);
     }
 
     // Create a directory for our component
-    fs::create_dir(&component_dir)
-        .expect("Could not create dist directory.");
+    fs::create_dir(&component_dir).expect("Could not create dist directory.");
 
     // Make a new directory in components, cd into it, and then run the rest of this code
-    env::set_current_dir(&component_dir)
-        .expect("Could not change into components directory.");
+    env::set_current_dir(&component_dir).expect("Could not change into components directory.");
 
     // Create the components directory, if needed
     if !target_dir.join("components").exists() {
         fs::create_dir(target_dir.join("components"))
             .expect("Could not create components directory.");
-    }
-    else {
+    } else {
         println!("components directory already exists, using existing directory.");
     }
 
     // Create the dist directory, if needed
     if !target_dir.join("dist").exists() {
-        fs::create_dir(target_dir.join("dist"))
-            .expect("Could not create dist directory.");
-    }
-    else {
+        fs::create_dir(target_dir.join("dist")).expect("Could not create dist directory.");
+    } else {
         println!("dist directory already exists, using existing directory.");
     }
 
     // Create the docs directory, if needed
     if !target_dir.join("docs").exists() {
-        fs::create_dir(target_dir.join("docs"))
-            .expect("Could not create docs directory.");
-    }
-    else {
+        fs::create_dir(target_dir.join("docs")).expect("Could not create docs directory.");
+    } else {
         println!("docs directory already exists, using existing directory.");
     }
 
     //Create the source directory, if needed
     if !target_dir.join("source").exists() {
-        fs::create_dir(target_dir.join("source"))
-            .expect("Could not create source directory.");
-    }
-    else {
+        fs::create_dir(target_dir.join("source")).expect("Could not create source directory.");
+    } else {
         println!("source directory already exists, using existing directory.");
     }
 
@@ -97,7 +91,6 @@ pub fn create_component(target_dir: &Path, name: &String, source_license: &Strin
     println!("Finished setting up component.");
 }
 
-
 /*
  * Uploads any changes to the project to the remote repository.
 */
@@ -116,13 +109,12 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
         generate_gitignore(&target_dir);
     }
-    
+
     // Add all changes, commit and push
     git_sr::git_add_and_commit(target_dir, message);
 
     println!("Done uploading component.");
 }
-
 
 /*
  * Converts a local component into a remote component, asking for a remote repo to push it to.
@@ -132,7 +124,11 @@ pub fn refactor(target_dir: &Path, name: String, url: String) {
 
     if component_dir.exists() {
         // Upload the current component to the remote repo
-        upload_component(&target_dir, String::from("Initial commit, refactoring component"), &url);
+        upload_component(
+            &target_dir,
+            String::from("Initial commit, refactoring component"),
+            &url,
+        );
 
         // Remove the local component and then install it from the remote using npm
         remove(&target_dir, &name);
@@ -140,14 +136,12 @@ pub fn refactor(target_dir: &Path, name: String, url: String) {
 
         // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
         amalgamate_licenses(&target_dir);
-    }
-    else {
+    } else {
         panic!("ERROR: The component does not exist in the components directory.");
     }
 
     println!("Finished refactoring local component to remote repository.");
 }
-
 
 /*
  * Removes a component from the project structure.
@@ -161,22 +155,22 @@ pub fn remove(target_dir: &Path, name: &str) {
 
         // Step through every file and directory in the path to be deleted and make sure that none are read-only
         for entry in walkdir::WalkDir::new(&component_dir) {
-            let entry = entry
-                .expect("Could not handle entry while walking components directory tree.");
+            let entry =
+                entry.expect("Could not handle entry while walking components directory tree.");
 
             // Remove read-only permissions on every entry
-            let md = &entry.path().metadata().
-                expect("ERROR: Could not get metadata.");
+            let md = &entry
+                .path()
+                .metadata()
+                .expect("ERROR: Could not get metadata.");
             let mut perms = md.permissions();
             perms.set_readonly(false);
             fs::set_permissions(&entry.path(), perms)
                 .expect("Error: Failed to set permissions on .git directory");
         }
 
-        fs::remove_dir_all(component_dir)
-            .expect("ERROR: not able to delete component directory.");
-    }
-    else {
+        fs::remove_dir_all(component_dir).expect("ERROR: not able to delete component directory.");
+    } else {
         remove_remote_component(&target_dir, name);
     }
 
@@ -217,11 +211,15 @@ pub fn remove_remote_component(target_dir: &Path, name: &str) -> SROutput {
     let mut output = npm_sr::npm_uninstall(target_dir, name);
 
     if output.status != 0 || output.wrapped_status != 0 {
-        output.stderr.push(String::from("ERROR: Component was not successfully removed"));
+        output.stderr.push(String::from(
+            "ERROR: Component was not successfully removed",
+        ));
     }
-    
+
     if output.status == 0 && output.wrapped_status == 0 {
-        output.stdout.push(String::from("Component was removed successfully."));
+        output
+            .stdout
+            .push(String::from("Component was removed successfully."));
     }
 
     output
@@ -234,28 +232,36 @@ pub fn download_component(target_dir: &Path, url: &str) -> SROutput {
     let mut output = git_sr::git_clone(target_dir, url);
 
     if output.status != 0 || output.wrapped_status != 0 {
-        output.stderr.push(String::from("ERROR: Component was not successfully downloaded"));
+        output.stderr.push(String::from(
+            "ERROR: Component was not successfully downloaded",
+        ));
     }
-    
+
     if output.status == 0 && output.wrapped_status == 0 {
-        output.stdout.push(String::from("Component was downloaded successfully."));
+        output
+            .stdout
+            .push(String::from("Component was downloaded successfully."));
     }
 
     output
 }
 
 /*
-    * Updates all remote components in node_modules
-    */
+ * Updates all remote components in node_modules
+ */
 pub fn update_dependencies(target_dir: &Path) -> SROutput {
     let mut output = npm_sr::npm_install(target_dir, "");
 
     if output.status != 0 || output.wrapped_status != 0 {
-        output.stderr.push(String::from("ERROR: Dependencies were not successfully updated"));
+        output.stderr.push(String::from(
+            "ERROR: Dependencies were not successfully updated",
+        ));
     }
-    
+
     if output.status == 0 && output.wrapped_status == 0 {
-        output.stdout.push(String::from("Dependencies were updated successfully."));
+        output
+            .stdout
+            .push(String::from("Dependencies were updated successfully."));
     }
 
     // Make sure that our package.json file is updated with all the license info
@@ -267,8 +273,13 @@ pub fn update_dependencies(target_dir: &Path) -> SROutput {
 /*
  * Updates the local component who's directory we're in
 */
-pub fn update_local_component(target_dir: &Path) ->  SROutput {
-    let mut output = SROutput {status: 0, wrapped_status: 0, stderr: Vec::new(), stdout: Vec::new()};
+pub fn update_local_component(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
 
     if target_dir.join(".git").exists() {
         output = git_sr::git_pull(target_dir);
@@ -278,20 +289,23 @@ pub fn update_local_component(target_dir: &Path) ->  SROutput {
 
         // Give the user an idea of whether the update was successful or not
         if output.status == 0 {
-            output.stdout.push(String::from("Component updated successfully."));
+            output
+                .stdout
+                .push(String::from("Component updated successfully."));
+        } else {
+            output
+                .stdout
+                .push(String::from("Component not updated successfully."));
         }
-        else {
-            output.stdout.push(String::from("Component not updated successfully."));
-        }
-    }
-    else {
+    } else {
         output.status = 1;
-        output.stderr.push(String::from("ERROR: Component is not set up as a repository, cannot update it."));
+        output.stderr.push(String::from(
+            "ERROR: Component is not set up as a repository, cannot update it.",
+        ));
     }
 
     output
 }
-
 
 /*
  * Generates a template README.md file to help the user get started.
@@ -307,12 +321,10 @@ fn generate_readme(target_dir: &Path, name: &str) {
         // Write the template text into the readme file
         fs::write(target_dir.join("README.md"), contents)
             .expect("Could not write to README.md file.");
-    }
-    else {
+    } else {
         println!("README.md already exists, using existing file and refusing to overwrite.");
     }
 }
-
 
 /*
  * Generates a bill of materials from a template.
@@ -328,12 +340,10 @@ fn generate_bom(target_dir: &Path, name: &str) {
         // Write the template text into the readme file
         fs::write(target_dir.join("bom_data.yaml"), contents)
             .expect("Could not write to bom_data.yaml.");
-    }
-    else {
+    } else {
         println!("bom_data.yaml already exists, using existing file and refusing to overwrite.");
     }
 }
-
 
 /*
  * Generates a package.json file for npm based on a Liquid template.
@@ -343,19 +353,20 @@ fn generate_package_json(target_dir: &Path, name: &str, license: &str) {
         // Add the things that need to be put substituted into the package file
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar(name.to_owned()));
-        globals.insert("license".into(), liquid::value::Value::scalar(license.to_owned()));
+        globals.insert(
+            "license".into(),
+            liquid::value::Value::scalar(license.to_owned()),
+        );
 
         let contents = render_template("package.json.liquid", &mut globals);
 
         // Write the contents into the file
         fs::write(target_dir.join("package.json"), contents)
             .expect("Could not write to package.json.");
-    }
-    else {
+    } else {
         println!("package.json already exists, using existing file and refusing to overwrite.");
     }
 }
-
 
 /*
  * Generates the .gitignore file used by the git command to ignore files and directories.
@@ -368,14 +379,11 @@ fn generate_gitignore(target_dir: &Path) {
         let contents = render_template(".gitignore.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(target_dir.join(".gitignore"), contents)
-            .expect("Could not write to .gitignore.");
-    }
-    else {
+        fs::write(target_dir.join(".gitignore"), contents).expect("Could not write to .gitignore.");
+    } else {
         println!(".gitignore already exists, using existing file and refusing to overwrite.");
     }
 }
-
 
 /*
  * Generates the dot file that tracks whether this is a top level component/project or a sub-component
@@ -384,20 +392,23 @@ fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str)
     if !target_dir.join(".sr").exists() {
         // Add the things that need to be put substituted into the .top file (none at this time)
         let mut globals = liquid::value::Object::new();
-        globals.insert("source_license".into(), liquid::value::Value::scalar(source_license.to_owned()));
-        globals.insert("doc_license".into(), liquid::value::Value::scalar(doc_license.to_owned()));
+        globals.insert(
+            "source_license".into(),
+            liquid::value::Value::scalar(source_license.to_owned()),
+        );
+        globals.insert(
+            "doc_license".into(),
+            liquid::value::Value::scalar(doc_license.to_owned()),
+        );
 
         let contents = render_template(".sr.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(target_dir.join(".sr"), contents)
-            .expect("Could not write to .sr file.");
-    }
-    else {
+        fs::write(target_dir.join(".sr"), contents).expect("Could not write to .sr file.");
+    } else {
         println!(".sr already exists, using existing file and refusing to overwrite.");
     }
 }
-
 
 /*
  * Reads a template to a string so that it can be written to a new components directory structure.
@@ -407,17 +418,13 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
 
     if template_name == ".sr.liquid" {
         contents = templates::sr_file_template();
-    }
-    else if template_name == ".gitignore.liquid" {
+    } else if template_name == ".gitignore.liquid" {
         contents = templates::gitignore_template();
-    }
-    else if template_name == "bom_data.yaml.liquid" {
+    } else if template_name == "bom_data.yaml.liquid" {
         contents = templates::bom_data_yaml_template();
-    }
-    else if template_name == "package.json.liquid" {
+    } else if template_name == "package.json.liquid" {
         contents = templates::package_json_template();
-    }
-    else if template_name == "README.md.liquid" {
+    } else if template_name == "README.md.liquid" {
         contents = templates::readme_template();
     }
 
@@ -425,9 +432,10 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
     let template = liquid::ParserBuilder::with_liquid()
         .build()
         .parse(&contents)
-            .expect("Could not parse template using Liquid.");
+        .expect("Could not parse template using Liquid.");
 
-    let output = template.render(globals)
+    let output = template
+        .render(globals)
         .expect("Could not render template using Liquid.");
 
     output
@@ -444,20 +452,27 @@ pub fn list_all_licenses(target_dir: &Path) -> String {
 
     // Walk through every sub-directory in this component, looking for .sr files
     for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry = entry
-            .expect("Could not handle entry while walking components directory tree.");
+        let entry = entry.expect("Could not handle entry while walking components directory tree.");
 
         // If we have a .sr file, keep it for later license extraction
         if entry.path().ends_with(".sr") {
             // The current component path
-            let component_path = entry.path().parent()
+            let component_path = entry
+                .path()
+                .parent()
                 .expect("Could not get the parent path of the .sr file.");
 
             // We want the licenses from our current dot files
             let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
             let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
 
-            license_listing.push_str(&format!("Path: {}, Source License: {}, Documentation License: {}{}", component_path.display(), source_value, doc_value, nl));
+            license_listing.push_str(&format!(
+                "Path: {}, Source License: {}, Documentation License: {}{}",
+                component_path.display(),
+                source_value,
+                doc_value,
+                nl
+            ));
         }
     }
 
@@ -499,8 +514,7 @@ fn amalgamate_licenses(target_dir: &Path) {
 
     // Walk through every sub-directory in this component, looking for .sr files
     for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry = entry
-            .expect("Could not handle entry while walking components directory tree.");
+        let entry = entry.expect("Could not handle entry while walking components directory tree.");
 
         // If we have a .sr file, keep it for later license extraction
         if entry.path().ends_with(".sr") {
@@ -567,24 +581,30 @@ fn get_json_value(json_file: &PathBuf, key: &str) -> String {
     // If the file doesn't exist, we can't do anything
     if json_file.exists() {
         // Open the file for reading
-        let mut file = fs::File::open(&json_file)
-            .expect("Error opening JSON file.");
+        let mut file = fs::File::open(&json_file).expect("Error opening JSON file.");
 
         // Attempt to read the contents of the file
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
+        file.read_to_string(&mut contents)
+            .expect("ERROR: Unable to read the JSON file for this component");
 
         let lines = contents.split("\n");
         for line in lines {
             // Make sure that we're extracting the proper license at the proper time
             if line.contains(&key) {
                 let part: Vec<&str> = line.split(":").collect();
-                value = part[1].replace("\"", "").replace(",", "").trim().to_string();
+                value = part[1]
+                    .replace("\"", "")
+                    .replace(",", "")
+                    .trim()
+                    .to_string();
             }
         }
-    }
-    else {
-        panic!("JSON file {} not found, cannot extract data from it.", json_file.display());
+    } else {
+        panic!(
+            "JSON file {} not found, cannot extract data from it.",
+            json_file.display()
+        );
     }
 
     value
@@ -595,16 +615,20 @@ fn get_json_value(json_file: &PathBuf, key: &str) -> String {
 */
 fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
     if json_file.exists() {
-        println!("Attempting to update value for {} in {}.", json_file.display(), key);
+        println!(
+            "Attempting to update value for {} in {}.",
+            json_file.display(),
+            key
+        );
 
         // Open the file for reading
-        let mut file = fs::File::open(&json_file)
-            .expect("Error opening JSON file.");
+        let mut file = fs::File::open(&json_file).expect("Error opening JSON file.");
 
         // Attempt to read the contents of the component's .sr file
         let mut contents = String::new();
         let mut new_contents = String::new();
-        file.read_to_string(&mut contents).expect("ERROR: Unable to read the JSON file for this component");
+        file.read_to_string(&mut contents)
+            .expect("ERROR: Unable to read the JSON file for this component");
 
         let lines = contents.split("\n");
         for line in lines {
@@ -612,7 +636,11 @@ fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
             if line.contains(&key) {
                 // Grab the original value
                 let part: Vec<&str> = line.split(":").collect();
-                let old_value = part[1].replace("\"", "").replace(",", "").trim().to_string();
+                let old_value = part[1]
+                    .replace("\"", "")
+                    .replace(",", "")
+                    .trim()
+                    .to_string();
 
                 // Scope the change to matching line and replace the original line with the new one
                 let new_line = line.replace(&old_value, &value);
@@ -623,8 +651,7 @@ fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
         // Make sure there's a change to write
         if !new_contents.is_empty() {
             // Try to write the contents back to the file
-            fs::write(json_file, new_contents)
-                .expect("Could not write to JSON file.");
+            fs::write(json_file, new_contents).expect("Could not write to JSON file.");
         }
     }
 }
@@ -638,12 +665,12 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
     // If the file doesn't exist, we can't do anything
     if yaml_file.exists() {
         // Open the file for reading
-        let mut file = fs::File::open(&yaml_file)
-            .expect("Error opening yaml file.");
+        let mut file = fs::File::open(&yaml_file).expect("Error opening yaml file.");
 
         // Attempt to read the contents of the file
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("ERROR: Unable to read the yaml file for this component");
+        file.read_to_string(&mut contents)
+            .expect("ERROR: Unable to read the yaml file for this component");
 
         let lines = contents.split("\n");
         for line in lines {
@@ -653,9 +680,11 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
                 value = String::from(part[1].replace(",", "").trim());
             }
         }
-    }
-    else {
-        panic!("yaml file {} not found, cannot extract data from it.", yaml_file.display());
+    } else {
+        panic!(
+            "yaml file {} not found, cannot extract data from it.",
+            yaml_file.display()
+        );
     }
 
     value
@@ -667,13 +696,13 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
 fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
     if yaml_file.exists() {
         // Open the file for reading
-        let mut file = fs::File::open(&yaml_file)
-            .expect("Error opening yaml file.");
+        let mut file = fs::File::open(&yaml_file).expect("Error opening yaml file.");
 
         // Attempt to read the contents of the component's .sr file
         let mut contents = String::new();
         let mut new_contents = String::new();
-        file.read_to_string(&mut contents).expect("ERROR: Unable to read the yaml file for this component");
+        file.read_to_string(&mut contents)
+            .expect("ERROR: Unable to read the yaml file for this component");
 
         let lines = contents.split("\n");
         for line in lines {
@@ -692,8 +721,7 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
         // Make sure there's a change to write
         if !new_contents.is_empty() {
             // Try to write the contents back to the file
-            fs::write(yaml_file, new_contents)
-                .expect("Could not write to yaml file.");
+            fs::write(yaml_file, new_contents).expect("Could not write to yaml file.");
         }
     }
 }
@@ -703,7 +731,8 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
 */
 fn get_parent_dir(target_dir: &Path) -> PathBuf {
     // Get the parent directory of this component's directory
-    let parent_dir = target_dir.parent()
+    let parent_dir = target_dir
+        .parent()
         .expect("Could not get the parent directory of the target component.");
 
     parent_dir.to_path_buf()
@@ -717,18 +746,17 @@ fn get_newline() -> String {
 
     if info.os_type() == os_info::Type::Windows {
         String::from("\r\n")
-    }
-    else {
+    } else {
         String::from("\n")
     }
 }
 
 /*
-    * Figures out what depth the component is at.
-    * 0 = A top level component is probably being created
-    * 1 = A top level component with no parent
-    * 2 = A sub-component at depth n
-    */
+ * Figures out what depth the component is at.
+ * 0 = A top level component is probably being created
+ * 1 = A top level component with no parent
+ * 2 = A sub-component at depth n
+ */
 pub fn get_level(target_dir: &Path) -> u8 {
     let level: u8;
 
@@ -741,11 +769,9 @@ pub fn get_level(target_dir: &Path) -> u8 {
     // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
     if !parent_file.exists() && !current_file.exists() {
         level = 0;
-    }
-    else if !parent_file.exists() && current_file.exists() {
+    } else if !parent_file.exists() && current_file.exists() {
         level = 1;
-    }
-    else {
+    } else {
         level = 2;
     }
 
@@ -756,15 +782,14 @@ pub mod git_sr;
 pub mod npm_sr;
 pub mod templates;
 
-
 #[cfg(test)]
 mod tests {
     use std::env;
     use std::fs;
     extern crate git2;
     extern crate uuid;
-    use std::path::PathBuf;
     use std::io::prelude::*;
+    use std::path::PathBuf;
 
     /*
      * Tests whether or not we can accurately find the parent dir of a component dir
@@ -791,14 +816,20 @@ mod tests {
         let test_dir = set_up(&temp_dir, "toplevel");
 
         // Read the source license from the sample directory
-        let source_license = super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
+        let source_license =
+            super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
         assert_eq!(source_license, "Unlicense");
 
         // Change the source license from the sample directory
-        super::update_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license", "NotASourceLicense");
+        super::update_yaml_value(
+            &test_dir.join("toplevel").join(".sr"),
+            "source_license",
+            "NotASourceLicense",
+        );
 
         // Make sure the source license changed
-        let source_license = super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
+        let source_license =
+            super::get_yaml_value(&test_dir.join("toplevel").join(".sr"), "source_license");
         assert_eq!(source_license, "NotASourceLicense");
 
         // Read a non-existent key from the sample directory
@@ -821,14 +852,19 @@ mod tests {
         assert_eq!(name, "toplevel");
 
         // Change the component name in the package.json file
-        super::update_json_value(&test_dir.join("toplevel").join("package.json"), "name", "NotAName");
+        super::update_json_value(
+            &test_dir.join("toplevel").join("package.json"),
+            "name",
+            "NotAName",
+        );
 
         // Make sure the component name changed in package.json
         let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "name");
         assert_eq!(name, "NotAName");
 
         // Read a non-existent key from package.json
-        let name = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "not_a_key");
+        let name =
+            super::get_json_value(&test_dir.join("toplevel").join("package.json"), "not_a_key");
         assert_eq!(name, "");
     }
 
@@ -843,12 +879,17 @@ mod tests {
         let test_dir = set_up(&temp_dir, "toplevel");
 
         // Make sure the license field starts with something other than the string we are looking for
-        super::update_json_value(&test_dir.join("toplevel").join("package.json"), "license", "NotALicense");
+        super::update_json_value(
+            &test_dir.join("toplevel").join("package.json"),
+            "license",
+            "NotALicense",
+        );
 
         super::amalgamate_licenses(&test_dir.join("toplevel"));
 
         // Make sure that all of the licenses were outlined correctly
-        let license = super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
+        let license =
+            super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
         assert!(license.contains("Unlicense"));
         assert!(license.contains("CC0-1.0"));
         assert!(license.contains("NotASourceLicense"));
@@ -920,8 +961,14 @@ mod tests {
 
         // Render the template and make sure we got was expected
         let mut globals = liquid::value::Object::new();
-        globals.insert("source_license".into(), liquid::value::Value::scalar("NotASourceLicense"));
-        globals.insert("doc_license".into(), liquid::value::Value::scalar("NotADocLicense"));
+        globals.insert(
+            "source_license".into(),
+            liquid::value::Value::scalar("NotASourceLicense"),
+        );
+        globals.insert(
+            "doc_license".into(),
+            liquid::value::Value::scalar("NotADocLicense"),
+        );
 
         let render = super::render_template(".sr.liquid", &mut globals);
 
@@ -964,7 +1011,10 @@ mod tests {
         // Render the template and make sure we got was expected
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar("TopLevel"));
-        globals.insert("license".into(), liquid::value::Value::scalar("(NotASourceLicense AND NotADocLicense)"));
+        globals.insert(
+            "license".into(),
+            liquid::value::Value::scalar("(NotASourceLicense AND NotADocLicense)"),
+        );
 
         let render = super::render_template("package.json.liquid", &mut globals);
 
@@ -997,14 +1047,14 @@ mod tests {
         let temp_dir = temp_dir.join(test_dir_name);
 
         // Create the temporary directory we are going to be working with
-        fs::create_dir(&temp_dir)
-            .expect("Could not create temporary directory for test.");
+        fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
         super::generate_dot_file(&temp_dir, "NotASourceLicense", "NotADocLicense");
 
         let mut file = fs::File::open(&temp_dir.join(".sr")).expect("Unable to open the sr file");
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("Unable to read the sr file");
+        file.read_to_string(&mut contents)
+            .expect("Unable to read the sr file");
 
         assert!(contents.contains("source_license: NotASourceLicense,"));
         assert!(contents.contains("documentation_license: NotADocLicense"));
@@ -1018,14 +1068,15 @@ mod tests {
         let temp_dir = temp_dir.join(test_dir_name);
 
         // Create the temporary directory we are going to be working with
-        fs::create_dir(&temp_dir)
-            .expect("Could not create temporary directory for test.");
+        fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
         super::generate_gitignore(&temp_dir);
 
-        let mut file = fs::File::open(&temp_dir.join(".gitignore")).expect("Unable to open the gitignore file");
+        let mut file = fs::File::open(&temp_dir.join(".gitignore"))
+            .expect("Unable to open the gitignore file");
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("Unable to read the gitignore file");
+        file.read_to_string(&mut contents)
+            .expect("Unable to read the gitignore file");
 
         assert!(contents.contains("node_modules/"));
         assert!(contents.contains("dist/"));
@@ -1039,14 +1090,15 @@ mod tests {
         let temp_dir = temp_dir.join(test_dir_name);
 
         // Create the temporary directory we are going to be working with
-        fs::create_dir(&temp_dir)
-            .expect("Could not create temporary directory for test.");
+        fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
         super::generate_package_json(&temp_dir, "TopLevel", "NotASourceLicense");
 
-        let mut file = fs::File::open(&temp_dir.join("package.json")).expect("Unable to open the package.json file");
+        let mut file = fs::File::open(&temp_dir.join("package.json"))
+            .expect("Unable to open the package.json file");
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+        file.read_to_string(&mut contents)
+            .expect("Unable to read the package.json file");
 
         assert!(contents.contains("  \"name\": \"TopLevel\","));
         assert!(contents.contains("  \"license\": \"NotASourceLicense\","));
@@ -1060,14 +1112,15 @@ mod tests {
         let temp_dir = temp_dir.join(test_dir_name);
 
         // Create the temporary directory we are going to be working with
-        fs::create_dir(&temp_dir)
-            .expect("Could not create temporary directory for test.");
+        fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
         super::generate_bom(&temp_dir, "TopLevel");
 
-        let mut file = fs::File::open(&temp_dir.join("bom_data.yaml")).expect("Unable to open the bom_data.yaml file");
+        let mut file = fs::File::open(&temp_dir.join("bom_data.yaml"))
+            .expect("Unable to open the bom_data.yaml file");
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+        file.read_to_string(&mut contents)
+            .expect("Unable to read the package.json file");
 
         assert!(contents.contains("# Bill of Materials Data for TopLevel"));
     }
@@ -1080,14 +1133,15 @@ mod tests {
         let temp_dir = temp_dir.join(test_dir_name);
 
         // Create the temporary directory we are going to be working with
-        fs::create_dir(&temp_dir)
-            .expect("Could not create temporary directory for test.");
+        fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
         super::generate_readme(&temp_dir, "TopLevel");
 
-        let mut file = fs::File::open(&temp_dir.join("README.md")).expect("Unable to open the README.md file");
+        let mut file =
+            fs::File::open(&temp_dir.join("README.md")).expect("Unable to open the README.md file");
         let mut contents = String::new();
-        file.read_to_string(&mut contents).expect("Unable to read the package.json file");
+        file.read_to_string(&mut contents)
+            .expect("Unable to read the package.json file");
 
         assert!(contents.contains("# TopLevel"));
     }
@@ -1130,7 +1184,10 @@ mod tests {
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        let output = super::download_component(&test_dir.join("toplevel"), "https://github.com/jmwright/toplevel.git");
+        let output = super::download_component(
+            &test_dir.join("toplevel"),
+            "https://github.com/jmwright/toplevel.git",
+        );
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
@@ -1168,12 +1225,12 @@ mod tests {
 
         let uuid_dir = uuid::Uuid::new_v4();
         let test_dir_name = format!("temp_{}", uuid_dir);
-        
+
         // Create the temporary test directory
         fs::create_dir(temp_dir.join(&test_dir_name))
             .expect("Unable to create temporary directory.");
 
-       match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join(dir_name)) {
+        match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join(dir_name)) {
             Ok(repo) => repo,
             Err(e) => panic!("failed to clone: {}", e),
         };

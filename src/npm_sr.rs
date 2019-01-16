@@ -6,9 +6,7 @@ use std::process::Command;
 fn find_npm_windows() -> String {
     // Run the where command to attempt to find the npm.cmd script
     let output = match Command::new("where.exe").args(&["npm.cmd"]).output() {
-        Ok(output) => {
-            output
-        },
+        Ok(output) => output,
         Err(_) => {
             println!("Could not run where.exe which is needed for this CLI to work.");
             std::process::exit(2);
@@ -34,10 +32,15 @@ fn find_npm_windows() -> String {
 * Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
 */
 pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
-    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
     let mut vec = Vec::new();
     vec.push("install");
-    
+
     let info = os_info::get();
     let mut cmd_name = String::from("npm");
 
@@ -53,18 +56,25 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
     }
 
     // Try to run the npm command line and gather the output and errors so that they can be used later
-    let stdoutput = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
-        Ok(out) => {
-            out
-        },
+    let stdoutput = match Command::new(&cmd_name)
+        .args(&vec)
+        .current_dir(target_dir)
+        .output()
+    {
+        Ok(out) => out,
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
                 output.status = 200;
-                output.stderr.push(String::from("ERROR: `npm` was not found, please install it."));
+                output.stderr.push(String::from(
+                    "ERROR: `npm` was not found, please install it.",
+                ));
                 return output;
             } else {
                 output.status = 201;
-                output.stderr.push(format!("ERROR: Could not install component from remote repository: {}", e));
+                output.stderr.push(format!(
+                    "ERROR: Could not install component from remote repository: {}",
+                    e
+                ));
                 return output;
             }
         }
@@ -73,19 +83,26 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
     // If we don't get any errors, assume that the component was installed successfully
     if stdoutput.stderr.is_empty() {
         if !url.is_empty() {
-            output.stdout.push(String::from("Component installed from remote repository."));
-        }
-        else {
-            output.stdout.push(String::from("Component successfully installed from remote repository."));
+            output
+                .stdout
+                .push(String::from("Component installed from remote repository."));
+        } else {
+            output.stdout.push(String::from(
+                "Component successfully installed from remote repository.",
+            ));
         }
     }
 
     // Collect all of the other stdout entrie
-    output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
     if !stdoutput.stderr.is_empty() {
-        output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
     // If we have something other than a 0 exit status, report that
@@ -96,15 +113,19 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
     output
 }
 
-
 /*
 * Uses the npm command to remove a remote component.
 */
 pub fn npm_uninstall(target_dir: &Path, name: &str) -> super::SROutput {
-    let mut output = super::SROutput { status: 0, wrapped_status: 0, stdout: Vec::new(), stderr: Vec::new() };
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
     let mut vec = Vec::new();
     vec.push("uninstall");
-    
+
     let info = os_info::get();
     let mut cmd_name = String::from("npm");
 
@@ -120,18 +141,25 @@ pub fn npm_uninstall(target_dir: &Path, name: &str) -> super::SROutput {
     }
 
     // Attempt to install the component using npm
-    let stdoutput = match Command::new(&cmd_name).args(&vec).current_dir(target_dir).output() {
-        Ok(out) => {
-            out
-        },
+    let stdoutput = match Command::new(&cmd_name)
+        .args(&vec)
+        .current_dir(target_dir)
+        .output()
+    {
+        Ok(out) => out,
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
                 output.status = 200;
-                output.stderr.push(String::from("ERROR: `npm` was not found, please install it."));
+                output.stderr.push(String::from(
+                    "ERROR: `npm` was not found, please install it.",
+                ));
                 return output;
             } else {
                 output.status = 202;
-                output.stderr.push(format!("ERROR: Could not uninstall component from remote repository: {}", e));
+                output.stderr.push(format!(
+                    "ERROR: Could not uninstall component from remote repository: {}",
+                    e
+                ));
                 return output;
             }
         }
@@ -139,15 +167,21 @@ pub fn npm_uninstall(target_dir: &Path, name: &str) -> super::SROutput {
 
     // If we don't get any errors, assume that the component was installed successfully
     if stdoutput.stderr.is_empty() {
-        output.stdout.push(String::from("Component successfully uninstalled from remote repository."));
+        output.stdout.push(String::from(
+            "Component successfully uninstalled from remote repository.",
+        ));
     }
 
     // Collect all of the other stdout entrie
-    output.stdout.push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
     if !stdoutput.stderr.is_empty() {
-        output.stderr.push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
     // If we have something other than a 0 exit status, report that
