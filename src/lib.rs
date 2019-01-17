@@ -171,7 +171,7 @@ pub fn remove(target_dir: &Path, name: &str) {
 
         fs::remove_dir_all(component_dir).expect("ERROR: not able to delete component directory.");
     } else {
-        remove_remote_component(&target_dir, name);
+        remove_remote_component(&target_dir, name, None);
     }
 
     // Make sure that our package.json file is updated with all the license info
@@ -206,9 +206,9 @@ pub fn add_remote_component(target_dir: &Path, url: &str) {
 /*
  * Removes a remote component via the name.
  */
-pub fn remove_remote_component(target_dir: &Path, name: &str) -> SROutput {
+pub fn remove_remote_component(target_dir: &Path, name: &str, cache: Option<String>) -> SROutput {
     // Use npm to remove the remote component
-    let mut output = npm_sr::npm_uninstall(target_dir, name);
+    let mut output = npm_sr::npm_uninstall(target_dir, name, cache);
 
     if output.status != 0 || output.wrapped_status != 0 {
         output.stderr.push(String::from(
@@ -1202,18 +1202,14 @@ mod tests {
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        let output = super::remove_remote_component(&test_dir.join("toplevel"), "blink_firmare");
+        let cache_name = Some(format!("/tmp/cache_{}", uuid::Uuid::new_v4()).to_string());
 
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-        for line in &output.stderr {
-            println!("{}", line);
-        }
+        let output = super::remove_remote_component(&test_dir.join("toplevel"), "blink_firmware", cache_name);
+
         // We should not have gotten an error
         assert_eq!(0, output.status);
 
-        assert!(output.stdout[1].contains("Component was removed successfully."));
+        assert!(output.stdout[0].contains("removed 1 package"));
     }
 
     /*
