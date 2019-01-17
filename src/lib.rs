@@ -183,11 +183,11 @@ pub fn remove(target_dir: &Path, name: &str) {
 /*
  * Allows the user to change the source and/or documentation licenses for the project.
 */
-pub fn change_licenses(target_dir: &Path, source_license: &String, doc_license: &String) {
+pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: String) {
     let cwd = target_dir.join(".sr");
 
-    update_yaml_value(&cwd, "source_license", source_license);
-    update_yaml_value(&cwd, "documentation_license", doc_license);
+    update_yaml_value(&cwd, "source_license", &source_license);
+    update_yaml_value(&cwd, "documentation_license", &doc_license);
 
     // Make sure our new licenses are up to date in package.json
     amalgamate_licenses(&target_dir);
@@ -1204,12 +1204,35 @@ mod tests {
 
         let cache_name = Some(format!("/tmp/cache_{}", uuid::Uuid::new_v4()).to_string());
 
-        let output = super::remove_remote_component(&test_dir.join("toplevel"), "blink_firmware", cache_name);
+        let output = super::remove_remote_component(
+            &test_dir.join("toplevel"),
+            "blink_firmware",
+            cache_name,
+        );
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
 
         assert!(output.stdout[0].contains("removed 1 package"));
+    }
+
+    #[test]
+    fn test_change_licenses() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let output = super::change_licenses(
+            &test_dir,
+            String::from("TestSourceLicense"),
+            String::from("TestDocLicense"),
+        );
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        assert!(output.stderr.is_empty());
     }
 
     /*
