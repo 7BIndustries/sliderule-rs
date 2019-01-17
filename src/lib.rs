@@ -132,7 +132,7 @@ pub fn refactor(target_dir: &Path, name: String, url: String) {
 
         // Remove the local component and then install it from the remote using npm
         remove(&target_dir, &name);
-        add_remote_component(&target_dir, &url);
+        add_remote_component(&target_dir, &url, None);
 
         // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
         amalgamate_licenses(&target_dir);
@@ -196,11 +196,25 @@ pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: S
 /*
  * Adds a remote component via URL to node_modules.
 */
-pub fn add_remote_component(target_dir: &Path, url: &str) {
-    npm_sr::npm_install(target_dir, &url);
+pub fn add_remote_component(target_dir: &Path, url: &str, cache: Option<String>) -> SROutput {
+    let mut output = npm_sr::npm_install(target_dir, &url, cache);
 
     // Make sure that our package.json file is updated with all the license info
     amalgamate_licenses(&target_dir);
+
+    if output.status != 0 || output.wrapped_status != 0 {
+        output.stderr.push(String::from(
+            "ERROR: Component was not successfully removed",
+        ));
+    }
+
+    if output.status == 0 && output.wrapped_status == 0 {
+        output
+            .stdout
+            .push(String::from("Component was removed successfully."));
+    }
+
+    output
 }
 
 /*
@@ -250,7 +264,7 @@ pub fn download_component(target_dir: &Path, url: &str) -> SROutput {
  * Updates all remote components in node_modules
  */
 pub fn update_dependencies(target_dir: &Path) -> SROutput {
-    let mut output = npm_sr::npm_install(target_dir, "");
+    let mut output = npm_sr::npm_install(target_dir, "", None);
 
     if output.status != 0 || output.wrapped_status != 0 {
         output.stderr.push(String::from(
@@ -1202,12 +1216,13 @@ mod tests {
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        let cache_name = Some(format!("/tmp/cache_{}", uuid::Uuid::new_v4()).to_string());
+        // Set up a cache directory to keep the system npm cache from getting messed up by the tests
+        let cache_dir = temp_dir.join(format!("cache_{}", uuid::Uuid::new_v4()));
 
         let output = super::remove_remote_component(
             &test_dir.join("toplevel"),
             "blink_firmware",
-            cache_name,
+            Some(cache_dir.to_string_lossy().to_string()),
         );
 
         // We should not have gotten an error
@@ -1217,23 +1232,56 @@ mod tests {
     }
 
     #[test]
-    fn test_change_licenses() {
+    fn test_add_remote_component() {
         let temp_dir = env::temp_dir();
 
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        let output = super::change_licenses(
-            &test_dir,
-            String::from("TestSourceLicense"),
-            String::from("TestDocLicense"),
+        // Set up a cache directory to keep the system npm cache from getting messed up by the tests
+        let cache_dir = temp_dir.join(format!("cache_{}", uuid::Uuid::new_v4()));
+
+        let output = super::add_remote_component(
+            &test_dir.join("toplevel"),
+            "https://github.com/jmwright/arduino-sr.git",
+            Some(cache_dir.to_string_lossy().to_string()),
         );
+
+        for line in &output.stdout {
+            println!("{}", line);
+        }
+
+        for line in &output.stderr {
+            println!("{}", line);
+        }
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
 
-        assert!(output.stderr.is_empty());
+        assert!(output.stdout[0].contains("added 1 package"));
     }
+
+    // #[test]
+    // fn test_change_licenses() {
+
+    //     // TODO: Finish this
+
+    //     let temp_dir = env::temp_dir();
+
+    //     // Set up our temporary project directory for testing
+    //     let test_dir = set_up(&temp_dir, "toplevel");
+
+    //     let output = super::change_licenses(
+    //         &test_dir,
+    //         String::from("TestSourceLicense"),
+    //         String::from("TestDocLicense"),
+    //     );
+
+    //     // We should not have gotten an error
+    //     assert_eq!(0, output.status);
+
+    //     assert!(output.stderr.is_empty());
+    // }
 
     /*
      * Sets up a test directory for our use.

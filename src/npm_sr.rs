@@ -31,7 +31,7 @@ fn find_npm_windows() -> String {
 /*
 * Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
 */
-pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
+pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
         wrapped_status: 0,
@@ -47,6 +47,12 @@ pub fn npm_install(target_dir: &Path, url: &str) -> super::SROutput {
     // Set the command name properly based on which OS the user is running
     if info.os_type() == os_info::Type::Windows {
         cmd_name = find_npm_windows(); //r"C:\Program Files\nodejs\npm.cmd";
+    }
+
+    // If the caller has selected to use a temporary cache, configure npm to use that
+    if cache.is_some() {
+        vec.push("--cache");
+        vec.push(cache.as_ref().unwrap());
     }
 
     // If no URL was specified, just npm update the whole project
