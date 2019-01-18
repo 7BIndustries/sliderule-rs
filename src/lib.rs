@@ -1238,7 +1238,11 @@ mod tests {
         // We should not have gotten an error
         assert_eq!(0, output.status);
 
-        assert!(!test_dir.join("toplevel").join("node_modules").join("blink_firmware").exists());
+        assert!(!test_dir
+            .join("toplevel")
+            .join("node_modules")
+            .join("blink_firmware")
+            .exists());
     }
 
     #[test]
@@ -1265,7 +1269,10 @@ mod tests {
             println!("{}", line);
         }
 
-        let component_path = test_dir.join("toplevel").join("node_modules").join("arduino-sr");
+        let component_path = test_dir
+            .join("toplevel")
+            .join("node_modules")
+            .join("arduino-sr");
 
         // We should not have gotten an error
         assert_eq!(0, output.status);
@@ -1274,7 +1281,12 @@ mod tests {
         assert!(component_path.exists());
 
         // The arduino-sr directory should be a valid component
-        assert!(is_valid_component(&component_path, "arduino-sr", "Unlicense", "CC0-1.0"));
+        assert!(is_valid_component(
+            &component_path,
+            "arduino-sr",
+            "Unlicense",
+            "CC0-1.0"
+        ));
     }
 
     // #[test]
@@ -1324,43 +1336,54 @@ mod tests {
     /*
      * Tests if a directory has the correct contents to be a component.
      */
-    fn is_valid_component(component_path: &Path, component_name: &str, source_license: &str, doc_license: &str) -> bool {
+    fn is_valid_component(
+        component_path: &Path,
+        component_name: &str,
+        source_license: &str,
+        doc_license: &str,
+    ) -> bool {
         let mut is_valid = true;
 
         // Make sure the BoM data file exists
         if !component_path.join("bom_data.yaml").exists() {
             is_valid = false;
-            println!("The file {:?}/bom_data.yaml does not exist.", component_path);
+            println!(
+                "The file {:?}/bom_data.yaml does not exist.",
+                component_path
+            );
         }
 
         // Make sure the component directory exists
         if !component_path.join("components").exists() {
             is_valid = false;
-            println!("The directory {:?}/components does not exist.", component_path);
+            println!(
+                "The directory {:?}/components does not exist.",
+                component_path
+            );
         }
 
         // Make sure the docs directory exists
         if !component_path.join("docs").exists() {
             is_valid = false;
-            println!("The directory {:?}/docs does not exist.",  component_path);
+            println!("The directory {:?}/docs does not exist.", component_path);
         }
 
         // Make sure the package.json file exists
         if !component_path.join("package.json").exists() {
             is_valid = false;
-            println!("The file {:?}/package.json does not exist.",  component_path);
+            println!("The file {:?}/package.json does not exist.", component_path);
         }
 
         // Make sure the README.md file exists
         if !component_path.join("README.md").exists() {
             is_valid = false;
-            println!("The file {:?}/README.md does not exist.",  component_path);
+            println!("The file {:?}/README.md does not exist.", component_path);
         }
 
         // Make sure the source directory exists
         if !component_path.join("source").exists() {
             is_valid = false;
-            println!("The directory {:?}/source does not exist.",  component_path);
+            println!("The directory {:?}/source does not exist.", component_path);
         }
 
         let bom_file = component_path.join("bom_data.yaml");
@@ -1369,7 +1392,11 @@ mod tests {
         let dot_file = component_path.join(".sr");
 
         // Check the content of the files and directories as appropriate here
-        if !file_contains_content(&bom_file, 0, &format!("# Bill of Materials Data for {}", component_name)) {
+        if !file_contains_content(
+            &bom_file,
+            0,
+            &format!("# Bill of Materials Data for {}", component_name),
+        ) {
             is_valid = false;
             println!("The bill to materials file does not contain the correct header.");
         }
@@ -1377,11 +1404,19 @@ mod tests {
             is_valid = false;
             println!("The bill to materials file does not contain the '-component_1' entry in the right place.");
         }
-        if !file_contains_content(&package_file, 9999, &format!("\"name\": \"{}\",", component_name)) {
+        if !file_contains_content(
+            &package_file,
+            9999,
+            &format!("\"name\": \"{}\",", component_name),
+        ) {
             is_valid = false;
             println!("The package.json file does not contain the component name entry in the right place.");
         }
-        if !file_contains_content(&package_file, 9999, &format!("\"license\": \"({} AND {})\",", source_license, doc_license)) {
+        if !file_contains_content(
+            &package_file,
+            9999,
+            &format!("\"license\": \"({} AND {})\",", source_license, doc_license),
+        ) {
             is_valid = false;
             println!("The package.json file does not contain the the correct license entry in the right place.");
         }
@@ -1393,11 +1428,21 @@ mod tests {
             is_valid = false;
             println!("The README.md file does not contain the the correct Sliderule mention in the right place.");
         }
-        if !file_contains_content(&dot_file, 0, &format!("source_license: {},", source_license)) {
+        if !file_contains_content(
+            &dot_file,
+            0,
+            &format!("source_license: {},", source_license),
+        ) {
             is_valid = false;
-            println!("The .sr file does not contain the the correct source license in the right place.");
+            println!(
+                "The .sr file does not contain the the correct source license in the right place."
+            );
         }
-        if !file_contains_content(&dot_file, 1, &format!("documentation_license: {}", doc_license)) {
+        if !file_contains_content(
+            &dot_file,
+            1,
+            &format!("documentation_license: {}", doc_license),
+        ) {
             is_valid = false;
             println!("The .sr file does not contain the the correct documentation license in the right place.");
         }
@@ -1412,14 +1457,13 @@ mod tests {
         let contains_content: bool;
 
         // Read the contents of the file
-        let contents = fs::read_to_string(file_path)
-            .expect("ERROR: Cannot read the contents of the file.");
+        let contents =
+            fs::read_to_string(file_path).expect("ERROR: Cannot read the contents of the file.");
 
         // See if the user just wants to make sure the content is somewhere in the file
         if line == 9999 {
             contains_content = contents.contains(text);
-        }
-        else {
+        } else {
             // Break the file down into something we can index
             let contents: Vec<&str> = contents.split("\n").collect();
 
