@@ -183,14 +183,25 @@ pub fn remove(target_dir: &Path, name: &str) {
 /*
  * Allows the user to change the source and/or documentation licenses for the project.
 */
-pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: String) {
-    let cwd = target_dir.join(".sr");
+pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: String) -> SROutput {
+    // Update the source and documentation licenses
+    let output = update_yaml_value(&target_dir.to_path_buf(), "source_license", &source_license);
+    let secondary_output = update_yaml_value(
+        &target_dir.to_path_buf(),
+        "documentation_license",
+        &doc_license,
+    );
 
-    update_yaml_value(&cwd, "source_license", &source_license);
-    update_yaml_value(&cwd, "documentation_license", &doc_license);
+    // Combine the outputs from the attempts to change the source and documentation licenses
+    let output = combine_sroutputs(output, secondary_output);
 
     // Make sure our new licenses are up to date in package.json
-    amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&target_dir);
+
+    // Combine the previously combined output with the new output from the license amalgamation
+    let output = combine_sroutputs(output, amal_output);
+
+    output
 }
 
 /*
@@ -521,14 +532,31 @@ pub fn get_licenses(target_dir: &Path) -> (String, String) {
 /*
  * Walk the directory structure of the current component and combine the licenses per the SPDX naming conventions.
 */
-fn amalgamate_licenses(target_dir: &Path) {
+fn amalgamate_licenses(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+
     let mut license_str = String::new();
     let mut source_licenses: Vec<String> = Vec::new();
     let mut doc_licenses: Vec<String> = Vec::new();
 
     // Walk through every sub-directory in this component, looking for .sr files
     for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry = entry.expect("Could not handle entry while walking components directory tree.");
+        let entry = match entry {
+            Ok(ent) => ent,
+            Err(e) => {
+                output.status = 6;
+                output.stderr.push(format!(
+                    "ERROR: Could not handle entry while walking components directory tree: {}",
+                    e
+                ));
+                return output;
+            }
+        };
 
         // If we have a .sr file, keep it for later license extraction
         if entry.path().ends_with(".sr") {
@@ -584,6 +612,8 @@ fn amalgamate_licenses(target_dir: &Path) {
     license_str.push_str(")");
 
     update_json_value(&target_dir.join("package.json"), "license", &license_str);
+
+    output
 }
 
 /*
@@ -707,19 +737,33 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
 /*
  * Replaces the value corresponding to a key in a yaml file
 */
-fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
+fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+
+    // Make sure the file even exists
     if yaml_file.exists() {
-        // Open the file for reading
-        let mut file = fs::File::open(&yaml_file).expect("Error opening yaml file.");
-
-        // Attempt to read the contents of the component's .sr file
-        let mut contents = String::new();
         let mut new_contents = String::new();
-        file.read_to_string(&mut contents)
-            .expect("ERROR: Unable to read the yaml file for this component");
 
-        let lines = contents.split("\n");
-        for line in lines {
+        // Read the entire contents of the file into a string so we can parse the lines
+        let contents = match fs::read_to_string(yaml_file) {
+            Ok(cont) => cont,
+            Err(e) => {
+                output.status = 4;
+                output.stderr.push(format!(
+                    "ERROR: Could not read the contents of the YAML file: {}",
+                    e
+                ));
+                return output;
+            }
+        };
+
+        // Step through all the lines in the file
+        for line in contents.lines() {
             // Make sure that we're extracting the proper license at the proper time
             if line.contains(&key) {
                 // Grab the original value
@@ -735,9 +779,25 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) {
         // Make sure there's a change to write
         if !new_contents.is_empty() {
             // Try to write the contents back to the file
-            fs::write(yaml_file, new_contents).expect("Could not write to yaml file.");
+            match fs::write(yaml_file, new_contents) {
+                Ok(_) => (),
+                Err(e) => {
+                    output.status = 5;
+                    output
+                        .stderr
+                        .push(format!("ERROR: Could not write to the YAML file: {}", e));
+                    return output;
+                }
+            }; //.expect("Could not write to yaml file.");
         }
+    } else {
+        output.status = 3;
+        output
+            .stderr
+            .push(String::from("YAML file to be updated does not exist."));
     }
+
+    output
 }
 
 /*
@@ -763,6 +823,29 @@ fn get_newline() -> String {
     } else {
         String::from("\n")
     }
+}
+
+/*
+ * Convenience function to combine the contents of two SROutput objects into one
+ */
+fn combine_sroutputs(mut dest: SROutput, src: SROutput) -> SROutput {
+    // Collect the stdout values into one
+    for line in src.stdout {
+        dest.stdout.push(line);
+    }
+
+    // Collect the stderr values into one
+    for line in src.stderr {
+        dest.stderr.push(line);
+    }
+
+    // Make sure that if there was an error condition, we catch at least one of them
+    // Runs the risk of masking one of the errors.
+    if dest.status == 0 && src.status != 0 {
+        dest.status = src.status;
+    }
+
+    dest
 }
 
 /*
@@ -1289,27 +1372,43 @@ mod tests {
         ));
     }
 
-    // #[test]
-    // fn test_change_licenses() {
+    #[test]
+    fn test_change_licenses() {
+        let temp_dir = env::temp_dir();
 
-    //     // TODO: Finish this
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
 
-    //     let temp_dir = env::temp_dir();
+        let output = super::change_licenses(
+            &test_dir.join("toplevel").join(".sr"),
+            String::from("TestSourceLicense"),
+            String::from("TestDocLicense"),
+        );
 
-    //     // Set up our temporary project directory for testing
-    //     let test_dir = set_up(&temp_dir, "toplevel");
+        for line in &output.stdout {
+            println!("{}", line);
+        }
+        for line in &output.stderr {
+            println!("{}", line);
+        }
 
-    //     let output = super::change_licenses(
-    //         &test_dir,
-    //         String::from("TestSourceLicense"),
-    //         String::from("TestDocLicense"),
-    //     );
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
 
-    //     // We should not have gotten an error
-    //     assert_eq!(0, output.status);
+        assert!(output.stderr.is_empty());
 
-    //     assert!(output.stderr.is_empty());
-    // }
+        // Check to make sure the licenses were actually changed
+        assert!(file_contains_content(
+            &test_dir.join("toplevel").join(".sr"),
+            9999,
+            "source_license: TestSourceLicense,"
+        ));
+        assert!(file_contains_content(
+            &test_dir.join("toplevel").join(".sr"),
+            9999,
+            "documentation_license: TestDocLicense"
+        ));
+    }
 
     /*
      * Sets up a test directory for our use.
