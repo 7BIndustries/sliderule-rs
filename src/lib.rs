@@ -146,38 +146,93 @@ pub fn refactor(target_dir: &Path, name: String, url: String) {
 /*
  * Removes a component from the project structure.
 */
-pub fn remove(target_dir: &Path, name: &str) {
+pub fn remove(target_dir: &Path, name: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     let component_dir = target_dir.join("components").join(name);
 
     // If the component exists as a subdirectory of components delete the directory directly otherwise use npm to remove it.
     if component_dir.exists() {
-        println!("Deleting component directory.");
+        output
+            .stdout
+            .push(format!("Deleting component directory {}.", name));
 
         // Step through every file and directory in the path to be deleted and make sure that none are read-only
         for entry in walkdir::WalkDir::new(&component_dir) {
-            let entry =
-                entry.expect("Could not handle entry while walking components directory tree.");
+            let entry = match entry {
+                Ok(ent) => ent,
+                Err(e) => {
+                    output.status = 6;
+                    output.stderr.push(format!(
+                        "ERROR: Could not handle entry while walking components directory tree: {}",
+                        e
+                    ));
+                    return output;
+                }
+            };
 
             // Remove read-only permissions on every entry
-            let md = &entry
-                .path()
-                .metadata()
-                .expect("ERROR: Could not get metadata.");
+            let md = match entry.path().metadata() {
+                Ok(m) => m,
+                Err(e) => {
+                    output.status = 7;
+                    output.stderr.push(format!(
+                        "ERROR: Could not get metadata for a .git directory entry: {}",
+                        e
+                    ));
+                    return output;
+                }
+            };
+
+            // Set the permissions on the directory to make sure that we can delete it when the time comes
             let mut perms = md.permissions();
             perms.set_readonly(false);
-            fs::set_permissions(&entry.path(), perms)
-                .expect("Error: Failed to set permissions on .git directory");
+            match fs::set_permissions(&entry.path(), perms) {
+                Ok(_) => (),
+                Err(e) => {
+                    output.status = 8;
+                    output.stderr.push(format!(
+                        "ERROR: Failed to set permissions on .git directory: {}",
+                        e
+                    ));
+                    return output;
+                }
+            };
         }
 
-        fs::remove_dir_all(component_dir).expect("ERROR: not able to delete component directory.");
+        // Delete the directory recursively
+        match fs::remove_dir_all(component_dir) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 8;
+                output.stderr.push(format!(
+                    "ERROR: not able to delete component directory: {}",
+                    e
+                ));
+                return output;
+            }
+        };
     } else {
-        remove_remote_component(&target_dir, name, None);
+        output = remove_remote_component(&target_dir, name, None);
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&target_dir);
 
-    println!("{} component removed.", name);
+    // Roll the amalgamation output in with what we have already
+    let mut output = combine_sroutputs(output, amal_output);
+
+    // Let the caller know the component was removed successfully
+    output
+        .stdout
+        .push(format!("Component {} was successfully removed.", name));
+
+    output
 }
 
 /*
@@ -1385,16 +1440,8 @@ mod tests {
             String::from("TestDocLicense"),
         );
 
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-        for line in &output.stderr {
-            println!("{}", line);
-        }
-
         // We should not have gotten an error
         assert_eq!(0, output.status);
-
         assert!(output.stderr.is_empty());
 
         // Check to make sure the licenses were actually changed
@@ -1408,6 +1455,48 @@ mod tests {
             9999,
             "documentation_license: TestDocLicense"
         ));
+    }
+
+    #[test]
+    fn test_remove() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Remove a local component so we can test it
+        let output = super::remove(&test_dir.join("toplevel"), "level1");
+
+        for line in &output.stdout {
+            println!("{}", line);
+        }
+        for line in &output.stderr {
+            println!("{}", line);
+        }
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+        assert!(output.stderr.is_empty());
+
+        // Make sure that the level1 directory was removed
+        assert!(!&test_dir
+            .join("toplevel")
+            .join("components")
+            .join("level1")
+            .exists());
+
+        // Remove a remote component so we can test it
+        let output = super::remove(&test_dir.join("toplevel"), "blink_firmware");
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        // Make sure that the level1 directory was removed
+        assert!(!&test_dir
+            .join("toplevel")
+            .join("node_modules")
+            .join("level1")
+            .exists());
     }
 
     /*
