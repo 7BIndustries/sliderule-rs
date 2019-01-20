@@ -67,8 +67,8 @@ pub fn create_component(
     };
 
     // Create the components directory, if needed
-    if !target_dir.join("components").exists() {
-        match fs::create_dir(target_dir.join("components")) {
+    if !component_dir.join("components").exists() {
+        match fs::create_dir(component_dir.join("components")) {
             Ok(_) => (),
             Err(e) => {
                 output.status = 13;
@@ -85,8 +85,8 @@ pub fn create_component(
     }
 
     // Create the dist directory, if needed
-    if !target_dir.join("dist").exists() {
-        match fs::create_dir(target_dir.join("dist")) {
+    if !component_dir.join("dist").exists() {
+        match fs::create_dir(component_dir.join("dist")) {
             Ok(_) => (),
             Err(e) => {
                 output.status = 14;
@@ -102,8 +102,8 @@ pub fn create_component(
     }
 
     // Create the docs directory, if needed
-    if !target_dir.join("docs").exists() {
-        match fs::create_dir(target_dir.join("docs")) {
+    if !component_dir.join("docs").exists() {
+        match fs::create_dir(component_dir.join("docs")) {
             Ok(_) => (),
             Err(e) => {
                 output.status = 15;
@@ -119,8 +119,8 @@ pub fn create_component(
     }
 
     //Create the source directory, if needed
-    if !target_dir.join("source").exists() {
-        match fs::create_dir(target_dir.join("source")) {
+    if !component_dir.join("source").exists() {
+        match fs::create_dir(component_dir.join("source")) {
             Ok(_) => (),
             Err(e) => {
                 output.status = 16;
@@ -136,23 +136,23 @@ pub fn create_component(
     }
 
     // Generate the template readme file
-    let file_output = generate_readme(&target_dir, &name);
+    let file_output = generate_readme(&component_dir, &name);
     output = combine_sroutputs(output, file_output);
 
     // Generate bom_data.yaml
-    let file_output = generate_bom(&target_dir, &name);
+    let file_output = generate_bom(&component_dir, &name);
     output = combine_sroutputs(output, file_output);
 
     // Generate package.json, if needed
-    let file_output = generate_package_json(&target_dir, &name, &source_license);
+    let file_output = generate_package_json(&component_dir, &name, &source_license);
     output = combine_sroutputs(output, file_output);
 
     // Generate the .sr file that provides extra information about this component
-    let file_output = generate_dot_file(&target_dir, &source_license, &doc_license);
+    let file_output = generate_dot_file(&component_dir, &source_license, &doc_license);
     output = combine_sroutputs(output, file_output);
 
     // Make sure that our package.json file is updated with all the license info
-    let amal_output = amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&component_dir);
     output = combine_sroutputs(output, amal_output);
 
     output
@@ -172,13 +172,15 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SRO
     // Initialize as a repo only if needed
     if !target_dir.join(".git").exists() {
         // Initialize the git repository and set the remote URL to push to
-        git_sr::git_init(target_dir, &url);
+        let git_output = git_sr::git_init(target_dir, &url);
+        output = combine_sroutputs(output, git_output);
     }
 
     // Create the gitignore file only if we need to
     if !target_dir.join(".gitignore").exists() {
         // Generate gitignore file so that we don't commit and push things we shouldn't be
-        generate_gitignore(&target_dir);
+        let file_output = generate_gitignore(&target_dir);
+        output = combine_sroutputs(output, file_output);
     }
 
     // Add all changes, commit and push
@@ -364,7 +366,8 @@ pub fn add_remote_component(target_dir: &Path, url: &str, cache: Option<String>)
     let mut output = npm_sr::npm_install(target_dir, &url, cache);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&target_dir);
+    output = combine_sroutputs(output, amal_output);
 
     if output.status != 0 || output.wrapped_status != 0 {
         output.stderr.push(String::from(
@@ -443,7 +446,8 @@ pub fn update_dependencies(target_dir: &Path) -> SROutput {
     }
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&target_dir);
+    output = combine_sroutputs(output, amal_output);
 
     output
 }
@@ -463,7 +467,8 @@ pub fn update_local_component(target_dir: &Path) -> SROutput {
         output = git_sr::git_pull(target_dir);
 
         // Make sure that our package.json file is updated with all the license info
-        amalgamate_licenses(&target_dir);
+        let amal_output = amalgamate_licenses(&target_dir);
+        output = combine_sroutputs(output, amal_output);
 
         // Give the user an idea of whether the update was successful or not
         if output.status == 0 {
@@ -764,8 +769,6 @@ pub fn get_licenses(target_dir: &Path) -> (String, String) {
 
     // Safety check to make sure the file exists
     if sr_file.exists() {
-        println!("Attempting to extract license from {}", sr_file.display());
-
         // Extract the licenses from the file
         source_license = get_yaml_value(&sr_file, "source_license");
         doc_license = get_yaml_value(&sr_file, "documentation_license");
@@ -904,12 +907,6 @@ fn get_json_value(json_file: &PathBuf, key: &str) -> String {
 */
 fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
     if json_file.exists() {
-        println!(
-            "Attempting to update value for {} in {}.",
-            json_file.display(),
-            key
-        );
-
         // Open the file for reading
         let mut file = fs::File::open(&json_file).expect("Error opening JSON file.");
 
@@ -1037,9 +1034,9 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) -> SROutput {
         }
     } else {
         output.status = 3;
-        output
-            .stderr
-            .push(String::from("YAML file to be updated does not exist."));
+        output.stderr.push(String::from(
+            "ERROR: YAML file to be updated does not exist.",
+        ));
     }
 
     output
@@ -1052,7 +1049,7 @@ fn get_parent_dir(target_dir: &Path) -> PathBuf {
     // Get the parent directory of this component's directory
     let parent_dir = target_dir
         .parent()
-        .expect("Could not get the parent directory of the target component.");
+        .expect("ERROR: Could not get the parent directory of the target component.");
 
     parent_dir.to_path_buf()
 }
@@ -1681,11 +1678,22 @@ mod tests {
             String::from("TestDocLicense"),
         );
 
-        assert_eq!(0, output.status);;
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        // We should have gotten a message that the component was finished being set up
         assert_eq!(
             "Finished setting up component.",
             output.stdout[output.stdout.len() - 1]
         );
+
+        // We should have a valid component when all is said and done
+        assert!(is_valid_component(
+            &test_dir.join("nextlevel"),
+            "nextlevel",
+            "TestSourceLicense",
+            "TestDocLicense"
+        ));
     }
 
     /*
@@ -1775,11 +1783,14 @@ mod tests {
             &format!("# Bill of Materials Data for {}", component_name),
         ) {
             is_valid = false;
-            println!("The bill to materials file does not contain the correct header.");
+            println!(
+                "The bill to materials file in {:?} does not contain the correct header.",
+                component_path
+            );
         }
         if !file_contains_content(&bom_file, 12, "-component_1") {
             is_valid = false;
-            println!("The bill to materials file does not contain the '-component_1' entry in the right place.");
+            println!("The bill to materials file in {:?} does not contain the '-component_1' entry in the right place.", component_path);
         }
         if !file_contains_content(
             &package_file,
@@ -1787,7 +1798,7 @@ mod tests {
             &format!("\"name\": \"{}\",", component_name),
         ) {
             is_valid = false;
-            println!("The package.json file does not contain the component name entry in the right place.");
+            println!("The package.json file in {:?} does not contain the component name entry in the right place.", component_path);
         }
         if !file_contains_content(
             &package_file,
@@ -1795,15 +1806,15 @@ mod tests {
             &format!("\"license\": \"({} AND {})\",", source_license, doc_license),
         ) {
             is_valid = false;
-            println!("The package.json file does not contain the the correct license entry in the right place.");
+            println!("The package.json file in {:?} does not contain the the correct license entry in the right place.", component_path);
         }
         if !file_contains_content(&readme_file, 0, &format!("# {}", component_name)) {
             is_valid = false;
-            println!("The README.md file does not contain the the correct header entry in the right place.");
+            println!("The README.md file in {:?} does not contain the the correct header entry in the right place.", component_path);
         }
         if !file_contains_content(&readme_file, 1, "New Sliderule component.") {
             is_valid = false;
-            println!("The README.md file does not contain the the correct Sliderule mention in the right place.");
+            println!("The README.md file in {:?} does not contain the the correct Sliderule mention in the right place.", component_path);
         }
         if !file_contains_content(
             &dot_file,
@@ -1812,7 +1823,8 @@ mod tests {
         ) {
             is_valid = false;
             println!(
-                "The .sr file does not contain the the correct source license in the right place."
+                "The .sr file in {:?} does not contain the the correct source license in the right place.",
+                component_path
             );
         }
         if !file_contains_content(
@@ -1821,7 +1833,7 @@ mod tests {
             &format!("documentation_license: {}", doc_license),
         ) {
             is_valid = false;
-            println!("The .sr file does not contain the the correct documentation license in the right place.");
+            println!("The .sr file in {:?} does not contain the the correct documentation license in the right place.", component_path);
         }
 
         is_valid

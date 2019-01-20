@@ -8,50 +8,76 @@ struct Args {
 /*
 * Uses the installed git command to initialize a project repo.
 */
-pub fn git_init(target_dir: &Path, url: &str) {
-    println!("Working...");
+pub fn git_init(target_dir: &Path, url: &str) -> super::SROutput {
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
 
     // Initialize the current directory as a git repo
-    let output = match Command::new("git")
+    let stdoutput = match Command::new("git")
         .args(&["init"])
         .current_dir(target_dir)
         .output()
     {
-        Ok(out) => {
-            println!("git repository initialized for project.");
-            out
-        }
+        Ok(out) => out,
         Err(e) => {
             if let std::io::ErrorKind::NotFound = e.kind() {
-                panic!("ERROR: `git` was not found, please install");
+                output.status = 106;
+                output
+                    .stderr
+                    .push(format!("ERROR: `git` was not found, please install: {}", e));
+                return output;
             } else {
-                panic!("ERROR: Could not initialize git repository: {}", e);
+                output.status = 107;
+                output
+                    .stderr
+                    .push(format!("ERROR: Could not initialize git repository: {}", e));
+                return output;
             }
         }
     };
-
-    // Let the user know if something went wrong
+    // init success
+    output
+        .stderr
+        .push(String::from("git repository initialized for project."));
+    // init stderr
     if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
     // Add the remote URL
-    let output = match Command::new("git")
+    let stdoutput = match Command::new("git")
         .args(&["remote", "add", "origin", url])
         .current_dir(target_dir)
         .output()
     {
-        Ok(out) => {
-            println!("Done initializing git repository for project.");
-            out
+        Ok(out) => out,
+        Err(e) => {
+            output.status = 108;
+            output.stderr.push(format!(
+                "ERROR: Unable to set remote URL for project: {}",
+                e
+            ));
+            return output;
         }
-        Err(e) => panic!("ERROR: Unable to set remote URL for project: {}", e),
     };
-
-    // Let the user know if something went wrong
+    // init success
+    output.stdout.push(String::from(
+        "Done initializing git repository for project.",
+    ));
+    // init stderr
     if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
+
+    output
 }
 
 /*
