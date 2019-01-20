@@ -21,82 +21,153 @@ pub struct SROutput {
 */
 pub fn create_component(
     target_dir: &Path,
-    name: &String,
-    source_license: &String,
-    doc_license: &String,
-) {
-    // let source_license: String;
-    // let doc_license: String;
+    name: String,
+    source_license: String,
+    doc_license: String,
+) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
 
     // The path can either lead to a top level component (project), or a component nested within a project
     let component_dir: PathBuf;
 
     // This is a top level component (project)
     if target_dir.join(".sr").exists() {
-        component_dir = target_dir.join("components").join(name);
+        component_dir = target_dir.join("components").join(&name);
     } else {
-        component_dir = target_dir.join(name);
+        component_dir = target_dir.join(&name);
     }
 
     // Create a directory for our component
-    fs::create_dir(&component_dir).expect("Could not create dist directory.");
+    match fs::create_dir(&component_dir) {
+        Ok(_) => (),
+        Err(e) => {
+            output.status = 11;
+            output.stderr.push(format!(
+                "ERROR: Could not create component directory: {}",
+                e
+            ));
+        }
+    };
 
     // Make a new directory in components, cd into it, and then run the rest of this code
-    env::set_current_dir(&component_dir).expect("Could not change into components directory.");
+    match env::set_current_dir(&component_dir) {
+        Ok(_) => (),
+        Err(e) => {
+            output.status = 12;
+            output.stderr.push(format!(
+                "ERROR: Could not change into component directory: {}",
+                e
+            ));
+        }
+    };
 
     // Create the components directory, if needed
     if !target_dir.join("components").exists() {
-        fs::create_dir(target_dir.join("components"))
-            .expect("Could not create components directory.");
+        match fs::create_dir(target_dir.join("components")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 13;
+                output.stderr.push(format!(
+                    "ERROR: Could not create components directory: {}",
+                    e
+                ));
+            }
+        };
     } else {
-        println!("components directory already exists, using existing directory.");
+        output.stdout.push(String::from(
+            "components directory already exists, using existing directory.",
+        ));
     }
 
     // Create the dist directory, if needed
     if !target_dir.join("dist").exists() {
-        fs::create_dir(target_dir.join("dist")).expect("Could not create dist directory.");
+        match fs::create_dir(target_dir.join("dist")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 14;
+                output
+                    .stderr
+                    .push(format!("ERROR: Could not create dist directory: {}", e));
+            }
+        };
     } else {
-        println!("dist directory already exists, using existing directory.");
+        output.stdout.push(String::from(
+            "dist directory already exists, using existing directory.",
+        ));
     }
 
     // Create the docs directory, if needed
     if !target_dir.join("docs").exists() {
-        fs::create_dir(target_dir.join("docs")).expect("Could not create docs directory.");
+        match fs::create_dir(target_dir.join("docs")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 15;
+                output
+                    .stderr
+                    .push(format!("ERROR: Could not create docs directory: {}", e));
+            }
+        };
     } else {
-        println!("docs directory already exists, using existing directory.");
+        output.stdout.push(String::from(
+            "docs directory already exists, using existing directory.",
+        ));
     }
 
     //Create the source directory, if needed
     if !target_dir.join("source").exists() {
-        fs::create_dir(target_dir.join("source")).expect("Could not create source directory.");
+        match fs::create_dir(target_dir.join("source")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 16;
+                output
+                    .stderr
+                    .push(format!("ERROR: Could not create source directory: {}", e));
+            }
+        };
     } else {
-        println!("source directory already exists, using existing directory.");
+        output.stdout.push(String::from(
+            "source directory already exists, using existing directory.",
+        ));
     }
 
     // Generate the template readme file
-    generate_readme(&target_dir, &name);
+    let file_output = generate_readme(&target_dir, &name);
+    output = combine_sroutputs(output, file_output);
 
     // Generate bom_data.yaml
-    generate_bom(&target_dir, &name);
+    let file_output = generate_bom(&target_dir, &name);
+    output = combine_sroutputs(output, file_output);
 
     // Generate package.json, if needed
-    generate_package_json(&target_dir, &name, &source_license);
+    let file_output = generate_package_json(&target_dir, &name, &source_license);
+    output = combine_sroutputs(output, file_output);
 
     // Generate the .sr file that provides extra information about this component
-    generate_dot_file(&target_dir, &source_license, &doc_license);
+    let file_output = generate_dot_file(&target_dir, &source_license, &doc_license);
+    output = combine_sroutputs(output, file_output);
 
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    let amal_output = amalgamate_licenses(&target_dir);
+    output = combine_sroutputs(output, amal_output);
 
-    println!("Finished setting up component.");
+    output
+        .stdout
+        .push(String::from("Finished setting up component."));
+
+    output
 }
 
 /*
  * Uploads any changes to the project to the remote repository.
 */
-pub fn upload_component(target_dir: &Path, message: String, url: &String) {
+pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SROutput {
     // Make sure that our package.json file is updated with all the license info
-    amalgamate_licenses(&target_dir);
+    let mut output = amalgamate_licenses(&target_dir);
 
     // Initialize as a repo only if needed
     if !target_dir.join(".git").exists() {
@@ -111,36 +182,63 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) {
     }
 
     // Add all changes, commit and push
-    git_sr::git_add_and_commit(target_dir, message);
+    let git_output = git_sr::git_add_and_commit(target_dir, message);
 
-    println!("Done uploading component.");
+    // Combine the outputs together
+    output = combine_sroutputs(output, git_output);
+
+    output
+        .stdout
+        .push(String::from("Done uploading component."));
+
+    output
 }
 
 /*
  * Converts a local component into a remote component, asking for a remote repo to push it to.
 */
-pub fn refactor(target_dir: &Path, name: String, url: String) {
+pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     let component_dir = target_dir.join("components").join(&name);
 
     if component_dir.exists() {
         // Upload the current component to the remote repo
-        upload_component(
+        output = upload_component(
             &target_dir,
             String::from("Initial commit, refactoring component"),
             &url,
         );
 
-        // Remove the local component and then install it from the remote using npm
-        remove(&target_dir, &name);
-        add_remote_component(&target_dir, &url, None);
+        // Remove the local component
+        let remove_output = remove(&target_dir, &name);
+        output = combine_sroutputs(output, remove_output);
+
+        // Install the newly minted remote component using npm
+        let add_output = add_remote_component(&target_dir, &url, None);
+        output = combine_sroutputs(output, add_output);
 
         // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
-        amalgamate_licenses(&target_dir);
+        let amal_output = amalgamate_licenses(&target_dir);
+        output = combine_sroutputs(output, amal_output);
     } else {
-        panic!("ERROR: The component does not exist in the components directory.");
+        output.status = 10;
+        output.stderr.push(String::from(
+            "ERROR: The component does not exist in the components directory.",
+        ));
+        return output;
     }
 
-    println!("Finished refactoring local component to remote repository.");
+    output.stdout.push(String::from(
+        "Finished refactoring local component to remote repository.",
+    ));
+
+    output
 }
 
 /*
@@ -209,7 +307,7 @@ pub fn remove(target_dir: &Path, name: &str) -> SROutput {
         match fs::remove_dir_all(component_dir) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 8;
+                output.status = 9;
                 output.stderr.push(format!(
                     "ERROR: not able to delete component directory: {}",
                     e
@@ -390,7 +488,14 @@ pub fn update_local_component(target_dir: &Path) -> SROutput {
 /*
  * Generates a template README.md file to help the user get started.
 */
-fn generate_readme(target_dir: &Path, name: &str) {
+fn generate_readme(target_dir: &Path, name: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     if !target_dir.join("README.md").exists() {
         // Add the things that need to be put substituted into the README file
         let mut globals = liquid::value::Object::new();
@@ -399,17 +504,35 @@ fn generate_readme(target_dir: &Path, name: &str) {
         let contents = render_template("README.md.liquid", &mut globals);
 
         // Write the template text into the readme file
-        fs::write(target_dir.join("README.md"), contents)
-            .expect("Could not write to README.md file.");
+        match fs::write(target_dir.join("README.md"), contents) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 17;
+                output
+                    .stderr
+                    .push(format!("Could not write to README.md file: {}", e));
+            }
+        };
     } else {
-        println!("README.md already exists, using existing file and refusing to overwrite.");
+        output.stdout.push(String::from(
+            "README.md already exists, using existing file and refusing to overwrite.",
+        ));
     }
+
+    output
 }
 
 /*
  * Generates a bill of materials from a template.
 */
-fn generate_bom(target_dir: &Path, name: &str) {
+fn generate_bom(target_dir: &Path, name: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     if !target_dir.join("bom_data.yaml").exists() {
         // Add the things that need to be put substituted into the BoM file
         let mut globals = liquid::value::Object::new();
@@ -418,17 +541,35 @@ fn generate_bom(target_dir: &Path, name: &str) {
         let contents = render_template("bom_data.yaml.liquid", &mut globals);
 
         // Write the template text into the readme file
-        fs::write(target_dir.join("bom_data.yaml"), contents)
-            .expect("Could not write to bom_data.yaml.");
+        match fs::write(target_dir.join("bom_data.yaml"), contents) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 18;
+                output
+                    .stderr
+                    .push(format!("Could not write to bom_data.yaml: {}", e));
+            }
+        };
     } else {
-        println!("bom_data.yaml already exists, using existing file and refusing to overwrite.");
+        output.stdout.push(String::from(
+            "bom_data.yaml already exists, using existing file and refusing to overwrite.",
+        ));
     }
+
+    output
 }
 
 /*
  * Generates a package.json file for npm based on a Liquid template.
 */
-fn generate_package_json(target_dir: &Path, name: &str, license: &str) {
+fn generate_package_json(target_dir: &Path, name: &str, license: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     if !target_dir.join("package.json").exists() {
         // Add the things that need to be put substituted into the package file
         let mut globals = liquid::value::Object::new();
@@ -441,17 +582,35 @@ fn generate_package_json(target_dir: &Path, name: &str, license: &str) {
         let contents = render_template("package.json.liquid", &mut globals);
 
         // Write the contents into the file
-        fs::write(target_dir.join("package.json"), contents)
-            .expect("Could not write to package.json.");
+        match fs::write(target_dir.join("package.json"), contents) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 19;
+                output
+                    .stderr
+                    .push(format!("Could not write to package.json: {}", e));
+            }
+        };
     } else {
-        println!("package.json already exists, using existing file and refusing to overwrite.");
+        output.stdout.push(String::from(
+            "package.json already exists, using existing file and refusing to overwrite.",
+        ));
     }
+
+    output
 }
 
 /*
  * Generates the .gitignore file used by the git command to ignore files and directories.
 */
-fn generate_gitignore(target_dir: &Path) {
+fn generate_gitignore(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     if !target_dir.join(".gitignore").exists() {
         // Add the things that need to be put substituted into the gitignore file (none at this time)
         let mut globals = liquid::value::Object::new();
@@ -459,16 +618,35 @@ fn generate_gitignore(target_dir: &Path) {
         let contents = render_template(".gitignore.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(target_dir.join(".gitignore"), contents).expect("Could not write to .gitignore.");
+        match fs::write(target_dir.join(".gitignore"), contents) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 20;
+                output
+                    .stderr
+                    .push(format!("Could not write to .gitignore: {}", e));
+            }
+        };
     } else {
-        println!(".gitignore already exists, using existing file and refusing to overwrite.");
+        output.stdout.push(String::from(
+            ".gitignore already exists, using existing file and refusing to overwrite.",
+        ));
     }
+
+    output
 }
 
 /*
  * Generates the dot file that tracks whether this is a top level component/project or a sub-component
 */
-fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str) {
+fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
     if !target_dir.join(".sr").exists() {
         // Add the things that need to be put substituted into the .top file (none at this time)
         let mut globals = liquid::value::Object::new();
@@ -484,10 +662,22 @@ fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str)
         let contents = render_template(".sr.liquid", &mut globals);
 
         // Write the contents to the file
-        fs::write(target_dir.join(".sr"), contents).expect("Could not write to .sr file.");
+        match fs::write(target_dir.join(".sr"), contents) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 21;
+                output
+                    .stderr
+                    .push(format!("Could not write to .sr file: {}", e));
+            }
+        };
     } else {
-        println!(".sr already exists, using existing file and refusing to overwrite.");
+        output.stdout.push(String::from(
+            ".sr already exists, using existing file and refusing to overwrite.",
+        ));
     }
+
+    output
 }
 
 /*
@@ -1365,14 +1555,6 @@ mod tests {
             Some(cache_dir.to_string_lossy().to_string()),
         );
 
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-
-        for line in &output.stderr {
-            println!("{}", line);
-        }
-
         // We should not have gotten an error
         assert_eq!(0, output.status);
 
@@ -1398,14 +1580,6 @@ mod tests {
             "https://github.com/jmwright/arduino-sr.git",
             Some(cache_dir.to_string_lossy().to_string()),
         );
-
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-
-        for line in &output.stderr {
-            println!("{}", line);
-        }
 
         let component_path = test_dir
             .join("toplevel")
@@ -1467,13 +1641,6 @@ mod tests {
         // Remove a local component so we can test it
         let output = super::remove(&test_dir.join("toplevel"), "level1");
 
-        for line in &output.stdout {
-            println!("{}", line);
-        }
-        for line in &output.stderr {
-            println!("{}", line);
-        }
-
         // We should not have gotten an error
         assert_eq!(0, output.status);
         assert!(output.stderr.is_empty());
@@ -1497,6 +1664,28 @@ mod tests {
             .join("node_modules")
             .join("level1")
             .exists());
+    }
+
+    #[test]
+    fn test_create_component() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Generate a new component
+        let output = super::create_component(
+            &test_dir,
+            String::from("nextlevel"),
+            String::from("TestSourceLicense"),
+            String::from("TestDocLicense"),
+        );
+
+        assert_eq!(0, output.status);;
+        assert_eq!(
+            "Finished setting up component.",
+            output.stdout[output.stdout.len() - 1]
+        );
     }
 
     /*

@@ -57,64 +57,98 @@ pub fn git_init(target_dir: &Path, url: &str) {
 /*
 * Adds, commits and pushes any changes to the remote git repo.
 */
-pub fn git_add_and_commit(target_dir: &Path, message: String) {
+pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput {
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+
     // git add .
-    let output = match Command::new("git")
+    let stdoutput = match Command::new("git")
         .args(&["add", "."])
         .current_dir(target_dir)
         .output()
     {
-        Ok(out) => {
-            println!("Changes staged using git.");
-            out
+        Ok(out) => out,
+        Err(e) => {
+            output.status = 103;
+            output
+                .stderr
+                .push(format!("ERROR: Unable to stage changes using git: {}", e));
+            return output;
         }
-        Err(e) => panic!("ERROR: Unable to stage changes using git: {}", e),
     };
-
+    // Staging success
+    output
+        .stdout
+        .push(String::from("Changes staged using git."));
+    // Staging stderr
     if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
     // git commit -m [message]
-    let output = match Command::new("git")
+    let stdoutput = match Command::new("git")
         .args(&["commit", "-m", &message])
         .current_dir(target_dir)
         .output()
     {
-        Ok(out) => {
-            println!("Changes committed using git.");
-            out
+        Ok(out) => out,
+        Err(e) => {
+            output.status = 104;
+            output
+                .stderr
+                .push(format!("ERROR: Unable to commit changes using git: {}", e));
+            return output;
         }
-        Err(e) => panic!(
-            "ERROR: Unable to push changes to remote git repository: {}",
-            e
-        ),
     };
-
+    // Commit success
+    output
+        .stdout
+        .push(String::from("Changes committed using git."));
+    // Commit stderr
     if !output.stderr.is_empty() {
-        panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
 
     // git push origin master
-    let output = match Command::new("git")
+    let stdoutput = match Command::new("git")
         .args(&["push", "origin", "master"])
         .current_dir(target_dir)
         .output()
     {
-        Ok(out) => {
-            println!("Changes pushed using git.");
-            out
+        Ok(out) => out,
+        // {
+        //     println!("Changes pushed using git.");
+        //     out
+        // }
+        Err(e) => {
+            output.status = 105;
+            output.stderr.push(format!(
+                "ERROR: Unable to push changes to remote git repository: {}",
+                e
+            ));
+            return output;
         }
-        Err(e) => panic!(
-            "ERROR: Unable to push changes to remote git repository: {}",
-            e
-        ),
     };
-
+    // Push success
+    output
+        .stdout
+        .push(String::from("Changes pushed using git."));
+    // Push stderr
     if !output.stderr.is_empty() {
-        // panic!("ERROR: {}", String::from_utf8_lossy(&output.stderr));
-        println!("{}", String::from_utf8_lossy(&output.stderr));
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
     }
+
+    output
 }
 
 /*
