@@ -880,7 +880,7 @@ fn get_json_value(json_file: &PathBuf, key: &str) -> String {
         file.read_to_string(&mut contents)
             .expect("ERROR: Unable to read the JSON file for this component");
 
-        let lines = contents.split("\n");
+        let lines = contents.lines();
         for line in lines {
             // Make sure that we're extracting the proper license at the proper time
             if line.contains(&key) {
@@ -916,7 +916,7 @@ fn update_json_value(json_file: &PathBuf, key: &str, value: &str) {
         file.read_to_string(&mut contents)
             .expect("ERROR: Unable to read the JSON file for this component");
 
-        let lines = contents.split("\n");
+        let lines = contents.lines();
         for line in lines {
             // Make sure that we're extracting the proper license at the proper time
             if line.contains(&key) {
@@ -958,7 +958,7 @@ fn get_yaml_value(yaml_file: &PathBuf, key: &str) -> String {
         file.read_to_string(&mut contents)
             .expect("ERROR: Unable to read the yaml file for this component");
 
-        let lines = contents.split("\n");
+        let lines = contents.lines();
         for line in lines {
             // Make sure that we're extracting the proper license at the proper time
             if line.contains(&key) {
@@ -1854,7 +1854,7 @@ mod tests {
             contains_content = contents.contains(text);
         } else {
             // Break the file down into something we can index
-            let contents: Vec<&str> = contents.split("\n").collect();
+            let contents: Vec<&str> = contents.lines().collect();
 
             // See if the line we are interested in is exactly the content specified
             contains_content = contents[line].trim() == text;

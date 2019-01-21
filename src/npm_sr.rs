@@ -19,7 +19,7 @@ fn find_npm_windows() -> String {
     if !output.stdout.is_empty() {
         // Convert the output into a string iterator that we can work with
         let lines = String::from_utf8_lossy(&output.stdout);
-        let lines: Vec<&str> = lines.split("\r\n").collect();
+        let lines: Vec<&str> = lines.lines().collect();
 
         // Take just the first line
         output_str = lines[0].trim().to_string();
