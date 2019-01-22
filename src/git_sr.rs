@@ -106,16 +106,18 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
             return output;
         }
     };
+    // Collect all of the other stdout entries
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
     // Staging success
     output
         .stdout
         .push(String::from("Changes staged using git."));
     // Staging stderr
-    if !output.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // git commit -m [message]
     let stdoutput = match Command::new("git")
@@ -132,16 +134,18 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
             return output;
         }
     };
+    // Collect all of the other stdout entries
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
     // Commit success
     output
         .stdout
         .push(String::from("Changes committed using git."));
     // Commit stderr
-    if !output.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // git push origin master
     let stdoutput = match Command::new("git")
@@ -150,10 +154,6 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
         .output()
     {
         Ok(out) => out,
-        // {
-        //     println!("Changes pushed using git.");
-        //     out
-        // }
         Err(e) => {
             output.status = 105;
             output.stderr.push(format!(
@@ -163,16 +163,18 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
             return output;
         }
     };
+    // Collect all of the other stdout entries
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
     // Push success
     output
         .stdout
         .push(String::from("Changes pushed using git."));
     // Push stderr
-    if !output.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     output
 }
@@ -219,11 +221,9 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
-    if !stdoutput.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // If we have something other than a 0 exit status, report that
     if stdoutput.status.code().unwrap() != 0 {
@@ -272,11 +272,9 @@ pub fn git_clone(target_dir: &Path, url: &str) -> super::SROutput {
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
-    if !stdoutput.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // If we have something other than a 0 exit status, report that
     if stdoutput.status.code().unwrap() != 0 {

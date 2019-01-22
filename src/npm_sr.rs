@@ -105,11 +105,9 @@ pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
-    if !stdoutput.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // If we have something other than a 0 exit status, report that
     if stdoutput.status.code().unwrap() != 0 {
@@ -190,11 +188,9 @@ pub fn npm_uninstall(target_dir: &Path, name: &str, cache: Option<String>) -> su
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
 
     // If there were errors, make sure we collect them
-    if !stdoutput.stderr.is_empty() {
-        output
-            .stderr
-            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
-    }
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
 
     // If we have something other than a 0 exit status, report that
     if stdoutput.status.code().unwrap() != 0 {

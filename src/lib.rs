@@ -340,9 +340,9 @@ pub fn remove(target_dir: &Path, name: &str) -> SROutput {
 */
 pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: String) -> SROutput {
     // Update the source and documentation licenses
-    let output = update_yaml_value(&target_dir.to_path_buf(), "source_license", &source_license);
+    let output = update_yaml_value(&target_dir.join(".sr"), "source_license", &source_license);
     let secondary_output = update_yaml_value(
-        &target_dir.to_path_buf(),
+        &target_dir.join(".sr"),
         "documentation_license",
         &doc_license,
     );
@@ -997,7 +997,7 @@ fn update_yaml_value(yaml_file: &PathBuf, key: &str, value: &str) -> SROutput {
             Err(e) => {
                 output.status = 4;
                 output.stderr.push(format!(
-                    "ERROR: Could not read the contents of the YAML file: {}",
+                    "ERROR: Could not update the contents of the YAML file: {}",
                     e
                 ));
                 return output;
@@ -1606,7 +1606,7 @@ mod tests {
         let test_dir = set_up(&temp_dir, "toplevel");
 
         let output = super::change_licenses(
-            &test_dir.join("toplevel").join(".sr"),
+            &test_dir.join("toplevel"),
             String::from("TestSourceLicense"),
             String::from("TestDocLicense"),
         );
