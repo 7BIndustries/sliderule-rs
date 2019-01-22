@@ -1606,7 +1606,12 @@ mod tests {
         assert!(file_contains_content(
             &test_dir.join("toplevel").join("package.json"),
             9999,
-            "\"license\": \"(Unlicense AND NotASourceLicense AND TestSourceLicense AND CC0-1.0 AND CC-BY-4.0 AND NotADocLicense AND TestDocLicense)\",",
+            "TestSourceLicense",
+        ));
+        assert!(file_contains_content(
+            &test_dir.join("toplevel").join("package.json"),
+            9999,
+            "TestDocLicense",
         ));
         // Check to make sure the licenses were actually changed
         assert!(file_contains_content(
