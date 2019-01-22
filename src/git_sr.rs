@@ -260,12 +260,6 @@ pub fn git_clone(target_dir: &Path, url: &str) -> super::SROutput {
         }
     };
 
-    // If we didn't get any output, the command is probably waiting on something
-    // if stdoutput.stdout.is_empty() {
-    //     output.status = 101;
-    //     output.stderr.push(format!("ERROR: Pull failed, may be waiting for username/password or passphrase."));
-    // }
-
     // Collect all of the other stdout entries
     output
         .stdout

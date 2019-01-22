@@ -4,7 +4,6 @@ extern crate liquid;
 extern crate os_info;
 extern crate walkdir;
 
-use std::env;
 use std::fs;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
@@ -54,24 +53,12 @@ pub fn create_component(
         }
     };
 
-    // Make a new directory in components, cd into it, and then run the rest of this code
-    match env::set_current_dir(&component_dir) {
-        Ok(_) => (),
-        Err(e) => {
-            output.status = 12;
-            output.stderr.push(format!(
-                "ERROR: Could not change into component directory: {}",
-                e
-            ));
-        }
-    };
-
     // Create the components directory, if needed
     if !component_dir.join("components").exists() {
         match fs::create_dir(component_dir.join("components")) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 13;
+                output.status = 12;
                 output.stderr.push(format!(
                     "ERROR: Could not create components directory: {}",
                     e
@@ -89,7 +76,7 @@ pub fn create_component(
         match fs::create_dir(component_dir.join("dist")) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 14;
+                output.status = 13;
                 output
                     .stderr
                     .push(format!("ERROR: Could not create dist directory: {}", e));
@@ -106,7 +93,7 @@ pub fn create_component(
         match fs::create_dir(component_dir.join("docs")) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 15;
+                output.status = 14;
                 output
                     .stderr
                     .push(format!("ERROR: Could not create docs directory: {}", e));
@@ -123,7 +110,7 @@ pub fn create_component(
         match fs::create_dir(component_dir.join("source")) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 16;
+                output.status = 15;
                 output
                     .stderr
                     .push(format!("ERROR: Could not create source directory: {}", e));
@@ -512,7 +499,7 @@ fn generate_readme(target_dir: &Path, name: &str) -> SROutput {
         match fs::write(target_dir.join("README.md"), contents) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 17;
+                output.status = 16;
                 output
                     .stderr
                     .push(format!("Could not write to README.md file: {}", e));
@@ -549,7 +536,7 @@ fn generate_bom(target_dir: &Path, name: &str) -> SROutput {
         match fs::write(target_dir.join("bom_data.yaml"), contents) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 18;
+                output.status = 17;
                 output
                     .stderr
                     .push(format!("Could not write to bom_data.yaml: {}", e));
@@ -590,7 +577,7 @@ fn generate_package_json(target_dir: &Path, name: &str, license: &str) -> SROutp
         match fs::write(target_dir.join("package.json"), contents) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 19;
+                output.status = 18;
                 output
                     .stderr
                     .push(format!("Could not write to package.json: {}", e));
@@ -626,7 +613,7 @@ fn generate_gitignore(target_dir: &Path) -> SROutput {
         match fs::write(target_dir.join(".gitignore"), contents) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 20;
+                output.status = 19;
                 output
                     .stderr
                     .push(format!("Could not write to .gitignore: {}", e));
@@ -670,7 +657,7 @@ fn generate_dot_file(target_dir: &Path, source_license: &str, doc_license: &str)
         match fs::write(target_dir.join(".sr"), contents) {
             Ok(_) => (),
             Err(e) => {
-                output.status = 21;
+                output.status = 20;
                 output
                     .stderr
                     .push(format!("Could not write to .sr file: {}", e));
@@ -1615,6 +1602,12 @@ mod tests {
         assert_eq!(0, output.status);
         assert!(output.stderr.is_empty());
 
+        // Make sure that the package.json file license was changed
+        assert!(file_contains_content(
+            &test_dir.join("toplevel").join("package.json"),
+            9999,
+            "\"license\": \"(Unlicense AND NotASourceLicense AND TestSourceLicense AND CC0-1.0 AND CC-BY-4.0 AND NotADocLicense AND TestDocLicense)\",",
+        ));
         // Check to make sure the licenses were actually changed
         assert!(file_contains_content(
             &test_dir.join("toplevel").join(".sr"),
