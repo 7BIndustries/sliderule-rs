@@ -4,9 +4,11 @@ extern crate liquid;
 extern crate os_info;
 extern crate walkdir;
 
+use std::cmp::Ordering;
+use std::ffi::OsStr;
 use std::fs;
 use std::io::prelude::*;
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 
 pub struct SROutput {
     pub status: i32,
@@ -712,30 +714,24 @@ pub fn list_all_licenses(target_dir: &Path) -> String {
     let mut license_listing = String::from("Licenses Specified In This Component:");
     license_listing.push_str(&nl);
 
-    // Walk through every sub-directory in this component, looking for .sr files
-    for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry = entry.expect("Could not handle entry while walking components directory tree.");
+    // Get the ordered listing of the component hierarchy
+    let hierarchy = get_hierarchy(target_dir, true);
 
-        // If we have a .sr file, keep it for later license extraction
-        if entry.path().ends_with(".sr") {
-            // The current component path
-            let component_path = entry
-                .path()
-                .parent()
-                .expect("Could not get the parent path of the .sr file.");
+    // Compile the licenses of all the entries
+    for entry in hierarchy {
+        let dot_file_path = entry.join(".sr");
 
-            // We want the licenses from our current dot files
-            let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
-            let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
+        // We want the licenses from our current dot files
+        let source_value = get_yaml_value(&dot_file_path, "source_license");
+        let doc_value = get_yaml_value(&dot_file_path, "documentation_license");
 
-            license_listing.push_str(&format!(
-                "Path: {}, Source License: {}, Documentation License: {}{}",
-                component_path.display(),
-                source_value,
-                doc_value,
-                nl
-            ));
-        }
+        license_listing.push_str(&format!(
+            "Path: {}, Source License: {}, Documentation License: {}{}",
+            entry.display(),
+            source_value,
+            doc_value,
+            nl
+        ));
     }
 
     license_listing
@@ -768,7 +764,7 @@ pub fn get_licenses(target_dir: &Path) -> (String, String) {
  * Walk the directory structure of the current component and combine the licenses per the SPDX naming conventions.
 */
 fn amalgamate_licenses(target_dir: &Path) -> SROutput {
-    let mut output = SROutput {
+    let output = SROutput {
         status: 0,
         wrapped_status: 0,
         stdout: Vec::new(),
@@ -779,33 +775,23 @@ fn amalgamate_licenses(target_dir: &Path) -> SROutput {
     let mut source_licenses: Vec<String> = Vec::new();
     let mut doc_licenses: Vec<String> = Vec::new();
 
-    // Walk through every sub-directory in this component, looking for .sr files
-    for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry = match entry {
-            Ok(ent) => ent,
-            Err(e) => {
-                output.status = 6;
-                output.stderr.push(format!(
-                    "ERROR: Could not handle entry while walking components directory tree: {}",
-                    e
-                ));
-                return output;
-            }
-        };
+    // Get the ordered listing of the component hierarchy
+    let hierarchy = get_hierarchy(target_dir, true);
 
-        // If we have a .sr file, keep it for later license extraction
-        if entry.path().ends_with(".sr") {
-            // We want the licenses from our current dot files
-            let source_value = get_yaml_value(&entry.path().to_path_buf(), "source_license");
-            let doc_value = get_yaml_value(&entry.path().to_path_buf(), "documentation_license");
+    // Compile the licenses of all the entries
+    for entry in hierarchy {
+        let dot_file_path = entry.join(".sr");
 
-            // Keep track of the license strings, avoiding duplicates
-            if !source_licenses.contains(&source_value) {
-                source_licenses.push(source_value);
-            }
-            if !doc_licenses.contains(&doc_value) {
-                doc_licenses.push(doc_value);
-            }
+        // We want the licenses from our current dot files
+        let source_value = get_yaml_value(&dot_file_path, "source_license");
+        let doc_value = get_yaml_value(&dot_file_path, "documentation_license");
+
+        // Keep track of the license strings, avoiding duplicates
+        if !source_licenses.contains(&source_value) {
+            source_licenses.push(source_value);
+        }
+        if !doc_licenses.contains(&doc_value) {
+            doc_licenses.push(doc_value);
         }
     }
 
@@ -849,6 +835,85 @@ fn amalgamate_licenses(target_dir: &Path) -> SROutput {
     update_json_value(&target_dir.join("package.json"), "license", &license_str);
 
     output
+}
+
+// Gives us a listing of a component's directory hierarchy in a predictable order
+fn get_hierarchy(target_dir: &Path, components_only: bool) -> Vec<PathBuf> {
+    let mut hierarchy: Vec<PathBuf> = Vec::new();
+
+    // Walk through every sub-directory in this component, looking for .sr files
+    for entry in walkdir::WalkDir::new(&target_dir) {
+        let entry =
+            entry.expect("ERROR: Had a problem with one of the component's directory entries.");
+
+        // We need to filter out files we are not interested in
+        if entry
+            .path()
+            .components()
+            .collect::<Vec<_>>()
+            .contains(&Component::Normal(OsStr::new(".git")))
+        {
+            continue;
+        }
+        if entry
+            .path()
+            .components()
+            .collect::<Vec<_>>()
+            .contains(&Component::Normal(OsStr::new(".gitignore")))
+        {
+            continue;
+        }
+
+        // Exclude files if the caller does not want to see them
+        if components_only {
+            if entry.path().is_file() {
+                continue;
+            }
+
+            let path_parts = entry.path().components().collect::<Vec<_>>();
+
+            // We need a few intermediate variables to keep the code form getting too messy
+            let target_dir_end = target_dir.components().collect::<Vec<_>>();
+            let target_dir_end = target_dir_end[target_dir_end.len() - 1];
+            let last_path_part = path_parts[path_parts.len() - 1];
+            let comps_component = Component::Normal(OsStr::new("components"));
+            let modules_component = Component::Normal(OsStr::new("node_modules"));
+
+            // If the end of the path is a name other than components or node_modules, and
+            // components or node_modules precedes it, it should be a component
+            if last_path_part != comps_component && last_path_part != modules_component {
+                if last_path_part == target_dir_end
+                    || (path_parts.len() >= 2
+                        && (path_parts[path_parts.len() - 2] == comps_component
+                            || path_parts[path_parts.len() - 2] == modules_component))
+                {
+                    // Save this component path so that it can be returned to the caller
+                    hierarchy.push(entry.path().to_path_buf());
+                }
+            }
+        } else {
+            // Save this path so that it can be returned to the caller
+            hierarchy.push(entry.path().to_path_buf());
+        }
+    }
+
+    // Sort the components into a predictable order
+    hierarchy.sort_by(|a, b| path_cmp(a.to_path_buf(), b.to_path_buf()).unwrap());
+
+    hierarchy
+}
+
+// Allows vectors of paths to be sorted by how many segments (slashes) there are
+fn path_cmp(a: PathBuf, b: PathBuf) -> Option<Ordering> {
+    let order: Ordering;
+
+    if a.components().collect::<Vec<_>>().len() <= b.components().collect::<Vec<_>>().len() {
+        order = Ordering::Less;
+    } else {
+        order = Ordering::Greater;
+    }
+
+    Some(order)
 }
 
 /*
@@ -1111,8 +1176,9 @@ pub mod templates;
 #[cfg(test)]
 mod tests {
     use std::env;
+    use std::ffi::OsStr;
     use std::fs;
-    use std::path::Path;
+    use std::path::{Component, Path};
 
     extern crate git2;
     extern crate uuid;
@@ -1200,7 +1266,7 @@ mod tests {
      * Tests whether or not the licenses are collected into the license field of package.json correctly.
      */
     #[test]
-    fn test_license_amalgamation() {
+    fn test_amalgamate_licenses() {
         let temp_dir = env::temp_dir();
 
         // Set up our temporary project directory for testing
@@ -1218,14 +1284,11 @@ mod tests {
         // Make sure that all of the licenses were outlined correctly
         let license =
             super::get_json_value(&test_dir.join("toplevel").join("package.json"), "license");
-        assert!(license.contains("Unlicense"));
-        assert!(license.contains("CC0-1.0"));
-        assert!(license.contains("NotASourceLicense"));
-        assert!(license.contains("NotADocLicense"));
-        assert!(license.contains("CC-BY-4.0"));
-        assert!(license.contains("AND"));
-        assert!(license.contains("("));
-        assert!(license.contains(")"));
+
+        assert_eq!(
+            license,
+            "(Unlicense AND NotASourceLicense AND CC0-1.0 AND NotADocLicense AND CC-BY-4.0)"
+        );
     }
 
     #[test]
@@ -1250,7 +1313,7 @@ mod tests {
         let test_dir = set_up(&temp_dir, "toplevel");
 
         // Make suer that we get a proper license listing when requested
-        let license_listing = super::list_all_licenses(&test_dir);
+        let license_listing = super::list_all_licenses(&test_dir.join("toplevel"));
 
         assert!(license_listing.contains("Licenses Specified In This Component:"));
         assert!(license_listing.contains("Unlicense"));
@@ -1692,6 +1755,58 @@ mod tests {
             "TestSourceLicense",
             "TestDocLicense"
         ));
+    }
+
+    #[test]
+    fn test_get_hierarchy() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // List out the hierarchy with files included
+        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), false);
+
+        // Spot-check the order to make sure it is correct
+        let path_end = hierarchy[0].components().collect::<Vec<_>>();
+        let path_end = path_end[path_end.len() - 1];
+        assert_eq!(path_end, Component::Normal(OsStr::new("toplevel")));
+
+        // Spot-check the order to make sure it is correct
+        let path_end = hierarchy[4].components().collect::<Vec<_>>();
+        let path_end = path_end[path_end.len() - 1];
+        assert_eq!(path_end, Component::Normal(OsStr::new("node_modules")));
+
+        // Spot-check the order to make sure it is correct
+        let path_end = hierarchy[25].components().collect::<Vec<_>>();
+        let path_end = path_end[path_end.len() - 1];
+        assert_eq!(path_end, Component::Normal(OsStr::new("level2")));
+
+        // Spot-check the order to make sure it is correct
+        let path_end = hierarchy[31].components().collect::<Vec<_>>();
+        let path_end = path_end[path_end.len() - 1];
+        assert_eq!(path_end, Component::Normal(OsStr::new("level3")));
+
+        // List out the hierarchy with files excluded
+        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), true);
+
+        // We need a list of components and the order in which they should be listed
+        let mut expected_ends = Vec::new();
+        expected_ends.push(Component::Normal(OsStr::new("toplevel")));
+        expected_ends.push(Component::Normal(OsStr::new("blink_firmware")));
+        expected_ends.push(Component::Normal(OsStr::new("level1")));
+        expected_ends.push(Component::Normal(OsStr::new("level2")));
+        expected_ends.push(Component::Normal(OsStr::new("level3")));
+
+        // Make sure that we have all the right components in the right places in the listing
+        let mut i = 0;
+        for path in hierarchy {
+            let path_end = path.components().collect::<Vec<_>>();
+            let path_end = path_end[path_end.len() - 1];
+            assert_eq!(path_end, expected_ends[i]);
+
+            i = i + 1;
+        }
     }
 
     /*
