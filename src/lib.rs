@@ -1784,6 +1784,10 @@ mod tests {
 
         let sr_paths = super::get_sr_paths(&test_dir.join("toplevel"));
 
+        for sr_path in &sr_paths {
+            println!("{:?}", sr_path);
+        }
+
         let path_parts = sr_paths[0].components().collect::<Vec<_>>();
         assert_eq!(
             path_parts[path_parts.len() - 1],
