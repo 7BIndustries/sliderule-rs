@@ -903,6 +903,24 @@ fn get_hierarchy(target_dir: &Path, components_only: bool) -> Vec<PathBuf> {
     hierarchy
 }
 
+fn get_sr_paths(target_dir: &Path) -> Vec<PathBuf> {
+    let mut sr_paths = Vec::new();
+
+    let walker = globwalk::GlobWalkerBuilder::from_patterns(target_dir, &[".sr"])
+        .max_depth(100)
+        .follow_links(false)
+        .build()
+        .expect("Could not build globwalk directory walker.")
+        .into_iter()
+        .filter_map(Result::ok);
+
+    for sr_file in walker {
+        sr_paths.push(sr_file.path().to_path_buf());
+    }
+
+    sr_paths
+}
+
 // Allows vectors of paths to be sorted by how many segments (slashes) there are
 fn path_cmp(a: PathBuf, b: PathBuf) -> Option<Ordering> {
     let order: Ordering;
@@ -1758,56 +1776,144 @@ mod tests {
     }
 
     #[test]
-    fn test_get_hierarchy() {
+    fn test_get_sr_paths() {
         let temp_dir = env::temp_dir();
 
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        // List out the hierarchy with files included
-        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), false);
+        let sr_paths = super::get_sr_paths(&test_dir.join("toplevel"));
 
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[0].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("toplevel")));
+        let path_parts = sr_paths[0].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("toplevel"))
+        );
 
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[4].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("node_modules")));
+        let path_parts = sr_paths[1].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level1"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
 
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[25].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("level2")));
+        let path_parts = sr_paths[2].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level2"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 4],
+            Component::Normal(OsStr::new("level1"))
+        );
 
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[31].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("level3")));
+        let path_parts = sr_paths[3].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level3"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 4],
+            Component::Normal(OsStr::new("level2"))
+        );
 
-        // List out the hierarchy with files excluded
-        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), true);
-
-        // We need a list of components and the order in which they should be listed
-        let mut expected_ends = Vec::new();
-        expected_ends.push(Component::Normal(OsStr::new("toplevel")));
-        expected_ends.push(Component::Normal(OsStr::new("blink_firmware")));
-        expected_ends.push(Component::Normal(OsStr::new("level1")));
-        expected_ends.push(Component::Normal(OsStr::new("level2")));
-        expected_ends.push(Component::Normal(OsStr::new("level3")));
-
-        // Make sure that we have all the right components in the right places in the listing
-        let mut i = 0;
-        for path in hierarchy {
-            let path_end = path.components().collect::<Vec<_>>();
-            let path_end = path_end[path_end.len() - 1];
-            assert_eq!(path_end, expected_ends[i]);
-
-            i = i + 1;
-        }
+        let path_parts = sr_paths[4].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("blink_firmware"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("node_modules"))
+        );
     }
+
+    // #[test]
+    // fn test_get_hierarchy() {
+    //     let temp_dir = env::temp_dir();
+
+    //     // Set up our temporary project directory for testing
+    //     let test_dir = set_up(&temp_dir, "toplevel");
+
+    //     // List out the hierarchy with files included
+    //     let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), false);
+
+    //     for path in &hierarchy {
+    //         println!("{:?}", path);
+    //     }
+
+    //     // Spot-check the order to make sure it is correct
+    //     let path_end = hierarchy[0].components().collect::<Vec<_>>();
+    //     let path_end = path_end[path_end.len() - 1];
+    //     assert_eq!(path_end, Component::Normal(OsStr::new("toplevel")));
+
+    //     // Spot-check the order to make sure it is correct
+    //     let path_end = hierarchy[4].components().collect::<Vec<_>>();
+    //     let path_end = path_end[path_end.len() - 1];
+    //     assert_eq!(path_end, Component::Normal(OsStr::new("node_modules")));
+
+    //     // Spot-check the order to make sure it is correct
+    //     let path_end = hierarchy[25].components().collect::<Vec<_>>();
+    //     let path_end = path_end[path_end.len() - 1];
+    //     assert_eq!(path_end, Component::Normal(OsStr::new("level2")));
+
+    //     // Spot-check the order to make sure it is correct
+    //     let path_end = hierarchy[31].components().collect::<Vec<_>>();
+    //     let path_end = path_end[path_end.len() - 1];
+    //     assert_eq!(path_end, Component::Normal(OsStr::new("level3")));
+
+    //     // List out the hierarchy with files excluded
+    //     let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), true);
+
+    //     // We need a list of components and the order in which they should be listed
+    //     let mut expected_ends = Vec::new();
+    //     expected_ends.push(Component::Normal(OsStr::new("toplevel")));
+    //     expected_ends.push(Component::Normal(OsStr::new("blink_firmware")));
+    //     expected_ends.push(Component::Normal(OsStr::new("level1")));
+    //     expected_ends.push(Component::Normal(OsStr::new("level2")));
+    //     expected_ends.push(Component::Normal(OsStr::new("level3")));
+
+    //     // Make sure that we have all the right components in the right places in the listing
+    //     let mut i = 0;
+    //     for path in hierarchy {
+    //         let path_end = path.components().collect::<Vec<_>>();
+    //         let path_end = path_end[path_end.len() - 1];
+    //         assert_eq!(path_end, expected_ends[i]);
+
+    //         i = i + 1;
+    //     }
+    // }
 
     /*
      * Sets up a test directory for our use.
