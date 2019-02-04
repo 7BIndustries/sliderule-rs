@@ -927,8 +927,7 @@ fn path_cmp2(a: &walkdir::DirEntry, b: &walkdir::DirEntry) -> Ordering {
 
     if a.to_owned().into_path().to_string_lossy() < b.to_owned().into_path().to_string_lossy() {
         order = Ordering::Less;
-    }
-    else {
+    } else {
         order = Ordering::Greater;
     }
 
