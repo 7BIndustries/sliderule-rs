@@ -1801,7 +1801,7 @@ mod tests {
         for sr_path in &sr_paths {
             println!("{:?}", sr_path);
         }
-        panic!("HERE");
+
         let path_parts = sr_paths[0].components().collect::<Vec<_>>();
         assert_eq!(
             path_parts[path_parts.len() - 1],
