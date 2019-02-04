@@ -909,6 +909,7 @@ fn get_sr_paths(target_dir: &Path) -> Vec<PathBuf> {
     let walker = globwalk::GlobWalkerBuilder::from_patterns(target_dir, &[".sr"])
         .max_depth(100)
         .follow_links(false)
+        .sort_by(path_cmp2)
         .build()
         .expect("Could not build globwalk directory walker.")
         .into_iter()
@@ -919,6 +920,19 @@ fn get_sr_paths(target_dir: &Path) -> Vec<PathBuf> {
     }
 
     sr_paths
+}
+
+fn path_cmp2(a: &walkdir::DirEntry, b: &walkdir::DirEntry) -> Ordering {
+    let order: Ordering;
+
+    if a.to_owned().into_path().to_string_lossy() < b.to_owned().into_path().to_string_lossy() {
+        order = Ordering::Less;
+    }
+    else {
+        order = Ordering::Greater;
+    }
+
+    order
 }
 
 // Allows vectors of paths to be sorted by how many segments (slashes) there are
@@ -1787,7 +1801,7 @@ mod tests {
         for sr_path in &sr_paths {
             println!("{:?}", sr_path);
         }
-
+        panic!("HERE");
         let path_parts = sr_paths[0].components().collect::<Vec<_>>();
         assert_eq!(
             path_parts[path_parts.len() - 1],
