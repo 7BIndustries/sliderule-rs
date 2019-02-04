@@ -5,10 +5,9 @@ extern crate os_info;
 extern crate walkdir;
 
 use std::cmp::Ordering;
-use std::ffi::OsStr;
 use std::fs;
 use std::io::prelude::*;
-use std::path::{Component, Path, PathBuf};
+use std::path::{Path, PathBuf};
 
 pub struct SROutput {
     pub status: i32,
@@ -715,15 +714,13 @@ pub fn list_all_licenses(target_dir: &Path) -> String {
     license_listing.push_str(&nl);
 
     // Get the ordered listing of the component hierarchy
-    let hierarchy = get_hierarchy(target_dir, true);
+    let sr_entries = get_sr_paths(target_dir);
 
     // Compile the licenses of all the entries
-    for entry in hierarchy {
-        let dot_file_path = entry.join(".sr");
-
+    for entry in sr_entries {
         // We want the licenses from our current dot files
-        let source_value = get_yaml_value(&dot_file_path, "source_license");
-        let doc_value = get_yaml_value(&dot_file_path, "documentation_license");
+        let source_value = get_yaml_value(&entry, "source_license");
+        let doc_value = get_yaml_value(&entry, "documentation_license");
 
         license_listing.push_str(&format!(
             "Path: {}, Source License: {}, Documentation License: {}{}",
@@ -776,15 +773,13 @@ fn amalgamate_licenses(target_dir: &Path) -> SROutput {
     let mut doc_licenses: Vec<String> = Vec::new();
 
     // Get the ordered listing of the component hierarchy
-    let hierarchy = get_hierarchy(target_dir, true);
+    let sr_entries = get_sr_paths(target_dir);
 
     // Compile the licenses of all the entries
-    for entry in hierarchy {
-        let dot_file_path = entry.join(".sr");
-
+    for entry in sr_entries {
         // We want the licenses from our current dot files
-        let source_value = get_yaml_value(&dot_file_path, "source_license");
-        let doc_value = get_yaml_value(&dot_file_path, "documentation_license");
+        let source_value = get_yaml_value(&entry, "source_license");
+        let doc_value = get_yaml_value(&entry, "documentation_license");
 
         // Keep track of the license strings, avoiding duplicates
         if !source_licenses.contains(&source_value) {
@@ -837,83 +832,38 @@ fn amalgamate_licenses(target_dir: &Path) -> SROutput {
     output
 }
 
-// Gives us a listing of a component's directory hierarchy in a predictable order
-fn get_hierarchy(target_dir: &Path, components_only: bool) -> Vec<PathBuf> {
-    let mut hierarchy: Vec<PathBuf> = Vec::new();
+// Yields all the paths to .sr files in the target component's directory structure
+fn get_sr_paths(target_dir: &Path) -> Vec<PathBuf> {
+    let mut sr_paths = Vec::new();
 
-    // Walk through every sub-directory in this component, looking for .sr files
-    for entry in walkdir::WalkDir::new(&target_dir) {
-        let entry =
-            entry.expect("ERROR: Had a problem with one of the component's directory entries.");
+    let walker = globwalk::GlobWalkerBuilder::from_patterns(target_dir, &[".sr"])
+        .max_depth(100)
+        .follow_links(false)
+        .sort_by(path_cmp)
+        .build()
+        .expect("Could not build globwalk directory walker.")
+        .into_iter()
+        .filter_map(Result::ok);
 
-        // We need to filter out files we are not interested in
-        if entry
-            .path()
-            .components()
-            .collect::<Vec<_>>()
-            .contains(&Component::Normal(OsStr::new(".git")))
-        {
-            continue;
-        }
-        if entry
-            .path()
-            .components()
-            .collect::<Vec<_>>()
-            .contains(&Component::Normal(OsStr::new(".gitignore")))
-        {
-            continue;
-        }
-
-        // Exclude files if the caller does not want to see them
-        if components_only {
-            if entry.path().is_file() {
-                continue;
-            }
-
-            let path_parts = entry.path().components().collect::<Vec<_>>();
-
-            // We need a few intermediate variables to keep the code form getting too messy
-            let target_dir_end = target_dir.components().collect::<Vec<_>>();
-            let target_dir_end = target_dir_end[target_dir_end.len() - 1];
-            let last_path_part = path_parts[path_parts.len() - 1];
-            let comps_component = Component::Normal(OsStr::new("components"));
-            let modules_component = Component::Normal(OsStr::new("node_modules"));
-
-            // If the end of the path is a name other than components or node_modules, and
-            // components or node_modules precedes it, it should be a component
-            if last_path_part != comps_component && last_path_part != modules_component {
-                if last_path_part == target_dir_end
-                    || (path_parts.len() >= 2
-                        && (path_parts[path_parts.len() - 2] == comps_component
-                            || path_parts[path_parts.len() - 2] == modules_component))
-                {
-                    // Save this component path so that it can be returned to the caller
-                    hierarchy.push(entry.path().to_path_buf());
-                }
-            }
-        } else {
-            // Save this path so that it can be returned to the caller
-            hierarchy.push(entry.path().to_path_buf());
-        }
+    for sr_file in walker {
+        sr_paths.push(sr_file.path().to_path_buf());
     }
 
-    // Sort the components into a predictable order
-    hierarchy.sort_by(|a, b| path_cmp(a.to_path_buf(), b.to_path_buf()).unwrap());
-
-    hierarchy
+    sr_paths
 }
 
-// Allows vectors of paths to be sorted by how many segments (slashes) there are
-fn path_cmp(a: PathBuf, b: PathBuf) -> Option<Ordering> {
+// Hackey way of comparing two paths by comparing them as strings, but is the only cross-platform way
+// that gives a reliable ordering of the paths.
+fn path_cmp(a: &walkdir::DirEntry, b: &walkdir::DirEntry) -> Ordering {
     let order: Ordering;
 
-    if a.components().collect::<Vec<_>>().len() <= b.components().collect::<Vec<_>>().len() {
+    if a.to_owned().into_path().to_string_lossy() < b.to_owned().into_path().to_string_lossy() {
         order = Ordering::Less;
     } else {
         order = Ordering::Greater;
     }
 
-    Some(order)
+    order
 }
 
 /*
@@ -1758,55 +1708,92 @@ mod tests {
     }
 
     #[test]
-    fn test_get_hierarchy() {
+    fn test_get_sr_paths() {
         let temp_dir = env::temp_dir();
 
         // Set up our temporary project directory for testing
         let test_dir = set_up(&temp_dir, "toplevel");
 
-        // List out the hierarchy with files included
-        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), false);
+        let sr_paths = super::get_sr_paths(&test_dir.join("toplevel"));
 
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[0].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("toplevel")));
-
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[4].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("node_modules")));
-
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[25].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("level2")));
-
-        // Spot-check the order to make sure it is correct
-        let path_end = hierarchy[31].components().collect::<Vec<_>>();
-        let path_end = path_end[path_end.len() - 1];
-        assert_eq!(path_end, Component::Normal(OsStr::new("level3")));
-
-        // List out the hierarchy with files excluded
-        let hierarchy = super::get_hierarchy(&test_dir.join("toplevel"), true);
-
-        // We need a list of components and the order in which they should be listed
-        let mut expected_ends = Vec::new();
-        expected_ends.push(Component::Normal(OsStr::new("toplevel")));
-        expected_ends.push(Component::Normal(OsStr::new("blink_firmware")));
-        expected_ends.push(Component::Normal(OsStr::new("level1")));
-        expected_ends.push(Component::Normal(OsStr::new("level2")));
-        expected_ends.push(Component::Normal(OsStr::new("level3")));
-
-        // Make sure that we have all the right components in the right places in the listing
-        let mut i = 0;
-        for path in hierarchy {
-            let path_end = path.components().collect::<Vec<_>>();
-            let path_end = path_end[path_end.len() - 1];
-            assert_eq!(path_end, expected_ends[i]);
-
-            i = i + 1;
+        // This is in here to help us troubleshoot if this test fails on one of the CI OSes
+        for sr_path in &sr_paths {
+            println!("{:?}", sr_path);
         }
+
+        let path_parts = sr_paths[0].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("toplevel"))
+        );
+
+        let path_parts = sr_paths[1].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level1"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
+
+        let path_parts = sr_paths[2].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level2"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 4],
+            Component::Normal(OsStr::new("level1"))
+        );
+
+        let path_parts = sr_paths[3].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("level3"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("components"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 4],
+            Component::Normal(OsStr::new("level2"))
+        );
+
+        let path_parts = sr_paths[4].components().collect::<Vec<_>>();
+        assert_eq!(
+            path_parts[path_parts.len() - 1],
+            Component::Normal(OsStr::new(".sr"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 2],
+            Component::Normal(OsStr::new("blink_firmware"))
+        );
+        assert_eq!(
+            path_parts[path_parts.len() - 3],
+            Component::Normal(OsStr::new("node_modules"))
+        );
     }
 
     /*
