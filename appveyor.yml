@@ -64,4 +64,4 @@ install:
 build: false
 
 test_script:
-  - cargo test --release
+  - cargo test --release  -- --test-threads=1

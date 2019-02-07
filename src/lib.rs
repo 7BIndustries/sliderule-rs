@@ -1839,6 +1839,9 @@ mod tests {
             "TestSourceLicense",
             "TestDocLicense"
         ));
+
+        // Make sure there are no git processes left around after we're done
+        kill_git();
     }
 
     #[test]
@@ -1928,6 +1931,38 @@ mod tests {
             path_parts[path_parts.len() - 3],
             Component::Normal(OsStr::new("node_modules"))
         );
+    }
+
+    // Cleans up the git daemon processes after tests run
+    fn kill_git() {
+        let info = os_info::get();
+
+        if info.os_type() == os_info::Type::Windows {
+            //taskkill /f /t /im wwahost.exe
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git"])
+                .output()
+                .unwrap();
+
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git-daemon"])
+                .output()
+                .unwrap();
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git.exe"])
+                .output()
+                .unwrap();
+
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git-daemon.exe"])
+                .output()
+                .unwrap();
+        } else {
+            Command::new("killall")
+                .args(&["git"])
+                .output()
+                .expect("failed to kill git process");
+        }
     }
 
     /*
