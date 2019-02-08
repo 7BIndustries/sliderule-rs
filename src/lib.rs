@@ -2005,6 +2005,12 @@ mod tests {
                 "The component directory {:?} does not exist",
                 component_path
             );
+        } else {
+            let paths = fs::read_dir(component_path).unwrap();
+
+            for path in paths {
+                println!("Component path: {}", path.unwrap().path().display());
+            }
         }
 
         // Make sure the BoM data file exists
