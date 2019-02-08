@@ -1818,6 +1818,12 @@ mod tests {
             &String::from("git://127.0.0.1/nextlevel"),
         );
 
+        if output.stderr.len() > 0 {
+            for out in &output.stderr {
+                println!("{:?}", out);
+            }
+        }
+
         assert_eq!(
             "Done uploading component.",
             output.stdout[output.stdout.len() - 1]
@@ -1838,8 +1844,6 @@ mod tests {
                 println!("{:?}", out);
             }
         }
-
-        assert_eq!(output.stderr.len(), 0);
 
         assert!(is_valid_component(
             &test_dir.join("toplevel").join("nextlevel"),
