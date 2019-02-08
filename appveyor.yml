@@ -56,6 +56,9 @@ install:
   # Node
   - ps: Install-Product node $env:nodejs_version
 
+  - git config --global user.email "me@me.com"
+  - git config --global user.name "Me"
+
   # let's see what we got
   - where gcc rustc cargo
   - rustc -vV
