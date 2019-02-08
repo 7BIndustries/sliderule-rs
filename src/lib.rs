@@ -1998,6 +1998,15 @@ mod tests {
     ) -> bool {
         let mut is_valid = true;
 
+        // Make sure that the component path exists
+        if !component_path.exists() {
+            is_valid = false;
+            println!(
+                "The component directory {:?} does not exist",
+                component_path
+            );
+        }
+
         // Make sure the BoM data file exists
         if !component_path.join("bom_data.yaml").exists() {
             is_valid = false;
