@@ -1828,10 +1828,18 @@ mod tests {
         );
 
         // To test properly, we have to re-download the component and check if it's valid
-        super::download_component(
+        let output = super::download_component(
             &test_dir.join("toplevel"),
             &String::from("git://127.0.0.1/nextlevel"),
         );
+
+        if output.stderr.len() > 0 {
+            for out in &output.stderr {
+                println!("{:?}", out);
+            }
+        }
+
+        assert_eq!(output.stderr.len(), 0);
 
         assert!(is_valid_component(
             &test_dir.join("toplevel").join("nextlevel"),
