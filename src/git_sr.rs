@@ -1,3 +1,5 @@
+extern crate os_info;
+
 use std::path::Path;
 use std::process::Command;
 
@@ -118,6 +120,35 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
     output
         .stderr
         .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+
+    let info = os_info::get();
+
+    // git push will hang in some configurations on Windows if we don't disable the git sendpack.sideband option
+    if info.os_type() == os_info::Type::Windows {
+        let stdoutput = match Command::new("git")
+            .args(&["config", "--local", "sendpack.sideband", "false"])
+            .current_dir(target_dir)
+            .output()
+        {
+            Ok(out) => out,
+            Err(e) => {
+                output.status = 109;
+                output.stderr.push(format!(
+                    "ERROR: Unable to disable sendpack.sideband git option: {}",
+                    e
+                ));
+                return output;
+            }
+        };
+        // Collect all of the other stdout entries
+        output
+            .stdout
+            .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+        // Staging stderr
+        output
+            .stderr
+            .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+    }
 
     // git commit -m [message]
     let stdoutput = match Command::new("git")
