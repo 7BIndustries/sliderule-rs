@@ -66,6 +66,18 @@ pub fn create_component(
                 ));
             }
         };
+
+        // Create a placeholder file to ensure that the directory gets pushed to the repo
+        match fs::File::create(component_dir.join("components").join(".ph")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 21;
+                output.stderr.push(format!(
+                    "ERROR: Could not create placeholder file in components directory: {}",
+                    e
+                ));
+            }
+        };
     } else {
         output.stdout.push(String::from(
             "components directory already exists, using existing directory.",
@@ -81,6 +93,18 @@ pub fn create_component(
                 output
                     .stderr
                     .push(format!("ERROR: Could not create dist directory: {}", e));
+            }
+        };
+
+        // Create a placeholder file to ensure that the directory gets pushed to the repo
+        match fs::File::create(component_dir.join("dist").join(".ph")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 21;
+                output.stderr.push(format!(
+                    "ERROR: Could not create placeholder file in dist directory: {}",
+                    e
+                ));
             }
         };
     } else {
@@ -100,6 +124,18 @@ pub fn create_component(
                     .push(format!("ERROR: Could not create docs directory: {}", e));
             }
         };
+
+        // Create a placeholder file to ensure that the directory gets pushed to the repo
+        match fs::File::create(component_dir.join("docs").join(".ph")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 21;
+                output.stderr.push(format!(
+                    "ERROR: Could not create placeholder file in docs directory: {}",
+                    e
+                ));
+            }
+        };
     } else {
         output.stdout.push(String::from(
             "docs directory already exists, using existing directory.",
@@ -115,6 +151,18 @@ pub fn create_component(
                 output
                     .stderr
                     .push(format!("ERROR: Could not create source directory: {}", e));
+            }
+        };
+
+        // Create a placeholder file to ensure that the directory gets pushed to the repo
+        match fs::File::create(component_dir.join("source").join(".ph")) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 21;
+                output.stderr.push(format!(
+                    "ERROR: Could not create placeholder file in source directory: {}",
+                    e
+                ));
             }
         };
     } else {
@@ -1134,6 +1182,7 @@ mod tests {
     extern crate uuid;
     use std::io::prelude::*;
     use std::path::PathBuf;
+    use std::process::Command;
 
     /*
      * Tests whether or not we can accurately find the parent dir of a component dir
@@ -1708,6 +1757,106 @@ mod tests {
     }
 
     #[test]
+    fn test_upload_component() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let demo_dir = test_dir.join("demo");
+        let remote_dir = demo_dir.join("nextlevel");
+
+        // Create the demo directory
+        fs::create_dir(&demo_dir).expect("Failed to create demo directory.");
+
+        Command::new("git")
+            .args(&["init", "--bare"])
+            .current_dir(&demo_dir)
+            .output()
+            .expect("failed to initialize bare git repository in demo directory");
+
+        // Create the remote directory for the nextlevel project
+        fs::create_dir(&remote_dir).expect("Failed to create top component directory.");
+
+        Command::new("git")
+            .args(&["init", "--bare"])
+            .current_dir(&remote_dir)
+            .output()
+            .expect("failed to initialize bare git repository in demo directory");
+
+        // Start a new git daemon server in the current remote repository
+        Command::new("git")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .args(&[
+                "daemon",
+                "--reuseaddr",
+                "--export-all",
+                "--base-path=.",
+                "--verbose",
+                "--enable=receive-pack",
+                ".",
+            ])
+            .current_dir(demo_dir)
+            .spawn()
+            .expect("ERROR: Could not launch git daemon.");
+
+        // Generate a new component
+        let output = super::create_component(
+            &test_dir,
+            String::from("nextlevel"),
+            String::from("TestSourceLicense"),
+            String::from("TestDocLicense"),
+        );
+
+        // Make sure we did not get any errors
+        assert_eq!(0, output.stderr.len());
+
+        let output = super::upload_component(
+            &test_dir.join("nextlevel"),
+            String::from("Initial commit"),
+            &String::from("git://127.0.0.1/nextlevel"),
+        );
+
+        if output.stderr.len() > 0 {
+            for out in &output.stderr {
+                println!("{:?}", out);
+            }
+        }
+
+        assert_eq!(
+            "Done uploading component.",
+            output.stdout[output.stdout.len() - 1]
+        );
+        assert_eq!(
+            "Changes pushed using git.",
+            output.stdout[output.stdout.len() - 2]
+        );
+
+        // To test properly, we have to re-download the component and check if it's valid
+        let output = super::download_component(
+            &test_dir.join("toplevel"),
+            &String::from("git://127.0.0.1/nextlevel"),
+        );
+
+        if output.stderr.len() > 0 {
+            for out in &output.stderr {
+                println!("{:?}", out);
+            }
+        }
+
+        assert!(is_valid_component(
+            &test_dir.join("toplevel").join("nextlevel"),
+            "nextlevel",
+            "TestSourceLicense",
+            "TestDocLicense"
+        ));
+
+        // Make sure there are no git processes left around after we're done
+        kill_git();
+    }
+
+    #[test]
     fn test_get_sr_paths() {
         let temp_dir = env::temp_dir();
 
@@ -1796,6 +1945,38 @@ mod tests {
         );
     }
 
+    // Cleans up the git daemon processes after tests run
+    fn kill_git() {
+        let info = os_info::get();
+
+        if info.os_type() == os_info::Type::Windows {
+            //taskkill /f /t /im wwahost.exe
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git"])
+                .output()
+                .unwrap();
+
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git-daemon"])
+                .output()
+                .unwrap();
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git.exe"])
+                .output()
+                .unwrap();
+
+            Command::new("taskkill")
+                .args(&["/f", "/t", "/im", "git-daemon.exe"])
+                .output()
+                .unwrap();
+        } else {
+            Command::new("killall")
+                .args(&["git"])
+                .output()
+                .expect("failed to kill git process");
+        }
+    }
+
     /*
      * Sets up a test directory for our use.
      */
@@ -1828,6 +2009,21 @@ mod tests {
         doc_license: &str,
     ) -> bool {
         let mut is_valid = true;
+
+        // Make sure that the component path exists
+        if !component_path.exists() {
+            is_valid = false;
+            println!(
+                "The component directory {:?} does not exist",
+                component_path
+            );
+        } else {
+            let paths = fs::read_dir(component_path).unwrap();
+
+            for path in paths {
+                println!("Component path: {}", path.unwrap().path().display());
+            }
+        }
 
         // Make sure the BoM data file exists
         if !component_path.join("bom_data.yaml").exists() {

@@ -56,6 +56,10 @@ install:
   # Node
   - ps: Install-Product node $env:nodejs_version
 
+  - git config --global user.email "me@me.com"
+  - git config --global user.name "Me"
+  - git config --global sendpack.sideband false
+
   # let's see what we got
   - where gcc rustc cargo
   - rustc -vV
@@ -64,4 +68,4 @@ install:
 build: false
 
 test_script:
-  - cargo test --release
+  - cargo test --release  -- --test-threads=1
