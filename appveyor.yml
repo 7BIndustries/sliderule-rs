@@ -58,6 +58,7 @@ install:
 
   - git config --global user.email "me@me.com"
   - git config --global user.name "Me"
+  - git config --global sendpack.sideband false
 
   # let's see what we got
   - where gcc rustc cargo
