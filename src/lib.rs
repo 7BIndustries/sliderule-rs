@@ -248,7 +248,7 @@ pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
     if component_dir.exists() {
         // Upload the current component to the remote repo
         output = upload_component(
-            &target_dir,
+            &component_dir,
             String::from("Initial commit, refactoring component"),
             &url,
         );
@@ -1754,6 +1754,94 @@ mod tests {
             "TestSourceLicense",
             "TestDocLicense"
         ));
+    }
+
+    #[test]
+    fn test_refactor() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        let demo_dir = test_dir.join("demo");
+        let remote_dir = demo_dir.join("remote");
+
+        // Create the demo directory
+        fs::create_dir(&demo_dir).expect("Failed to create demo directory.");
+
+        Command::new("git")
+            .args(&["init", "--bare"])
+            .current_dir(&demo_dir)
+            .output()
+            .expect("failed to initialize bare git repository in demo directory");
+
+        // Create the remote directory for the nextlevel project
+        fs::create_dir(&remote_dir).expect("Failed to create top component directory.");
+
+        Command::new("git")
+            .args(&["init", "--bare"])
+            .current_dir(&remote_dir)
+            .output()
+            .expect("failed to initialize bare git repository in demo directory");
+
+        // Start a new git daemon server in the current remote repository
+        Command::new("git")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .args(&[
+                "daemon",
+                "--reuseaddr",
+                "--export-all",
+                "--base-path=.",
+                "--verbose",
+                "--enable=receive-pack",
+                ".",
+            ])
+            .current_dir(demo_dir)
+            .spawn()
+            .expect("ERROR: Could not launch git daemon.");
+
+        // Generate a new component
+        let output = super::create_component(
+            &test_dir.join("toplevel"),
+            String::from("remote"),
+            String::from("TestSourceLicense"),
+            String::from("TestDocLicense"),
+        );
+
+        // Make sure we did not get any errors
+        assert_eq!(0, output.stderr.len());
+
+        let output = super::refactor(
+            &test_dir.join("toplevel"),
+            String::from("remote"),
+            String::from("git://127.0.0.1/remote"),
+        );
+
+        if output.stderr.len() > 0 {
+            for out in &output.stderr {
+                println!("{:?}", out);
+            }
+        }
+
+        assert_eq!(
+            "Finished refactoring local component to remote repository.",
+            output.stdout[output.stdout.len() - 1]
+        );
+
+        // Make sure the component was reinstalled in the node_modules directory
+        assert!(is_valid_component(
+            &test_dir
+                .join("toplevel")
+                .join("node_modules")
+                .join("remote"),
+            "remote",
+            "TestSourceLicense",
+            "TestDocLicense"
+        ));
+
+        // Make sure there are no git processes left around after we're done
+        kill_git();
     }
 
     #[test]
