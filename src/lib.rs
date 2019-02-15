@@ -1,3 +1,34 @@
+//! Sliderule is an implementation of the Distributed OSHW (Open Source Hardware) Framework ([`DOF`])
+//! being developed by Mach 30 Foundation for Space Development.
+//!
+//! [`DOF`]: https://github.com/Mach30/dof
+//!
+//! Sliderule wraps the `git` and `npm` commands and uses them to manage DOF/Sliderule projects, both
+//! on the local file system, and on a remote server. At this time only structure management is provided,
+//! there is no capability to render models for documentation like assembly instructions out into their
+//! distributable form.
+//!
+//! Central to understanding Sliderule is the concept of _local_ and _remote_ components. _Local_ components
+//! are stored with a project, which is the top-level, enclosing component. Local components do not
+//! have a repository associated with them, they are only stored in the `components` directory of a project.
+//! Remote components, on the other hand, are stored in a remote repository, and are only installed into
+//! the local file system if the user requests it. Remote components are intended to be shared, local components
+//! are intended to only be used within their parent project. A local component can be converted into a remote
+//! component later, if desired.
+//!
+//! The following is a list of the major operations available through this crate.
+//! - _create_ - Creates a top level component unless creating a component inside of an existing component.
+//!   In that case the new component is placed within the `components` directory of the parent "project" component.
+//! - _add_ - Adds a remote component from a repository into the `node_modules` directory of the current component.
+//! - _download_ - Downloads a copy of a component form a remote repository.
+//! - _update_ - Downloads the latest changes to the component and/or its remote components (dependencies)
+//! - _remove_ - Removes a component, whether it is local or remote.
+//! - _upload_ - Uploads component changes on the local file system to its remote repository.
+//! - _refactor_ - Converts a local component to a remote component so that it may be more easily shared.
+//!
+//! There are also various helper functions to do things like getting what level a component is in a hierarchy and
+//! compiling the licenses of all components in a project.
+
 #![allow(dead_code)]
 
 extern crate liquid;
@@ -16,9 +47,49 @@ pub struct SROutput {
     pub stderr: Vec<String>,
 }
 
-/*
- * Create a new Sliderule component or convert an existing project to being a Sliderule project.
-*/
+/// Creates a new component or converts an existing directory into a component.
+///
+/// If `target_dir` is not a component directory, a new, top-level project component will be created.
+/// If `target_dir` is a component directory, a new component is created in the existing `components`
+/// directory. The name of the component is determine by the `name` parameter. Names are not allowed
+/// to include dots. The source materials license `source_license` and documentation license (`doc_license`)
+/// must be specified and must be from the [`SPDX`] license list.
+///
+/// [`SPDX`]: https://spdx.org/licenses/
+///
+/// # Examples
+///
+/// Creating a new top-level project component:
+/// ```
+/// extern crate sliderule;
+///
+/// let temp_dir = std::env::temp_dir();
+///
+/// let output = sliderule::create_component(
+///     &temp_dir,
+///     String::from("newproject"),
+///     String::from("TestSourceLicense"),
+///     String::from("TestDocLicense"),
+/// );
+///
+/// assert!(temp_dir.join("newproject").exists());
+/// ```
+/// Creating a new local component:
+/// ```
+/// extern crate sliderule;
+///
+/// let temp_dir = std::env::temp_dir().join("newproject");
+///
+/// let output = sliderule::create_component(
+///     &temp_dir,
+///     String::from("localcomponent"),
+///     String::from("TestSourceLicense"),
+///     String::from("TestDocLicense"),
+/// );
+///
+/// assert!(temp_dir.join("components").join("localcomponent").exists());
+/// ```
+
 pub fn create_component(
     target_dir: &Path,
     name: String,
