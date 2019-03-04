@@ -7,9 +7,13 @@ struct Args {
     arg_remote: Option<String>,
 }
 
-/*
-* Uses the installed git command to initialize a project repo.
-*/
+
+/// Uses the installed git command to initialize a new component project repo.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// 'url' The URL of the remote repository to set as the origin for this git repository.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn git_init(target_dir: &Path, url: &str) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
@@ -82,9 +86,12 @@ pub fn git_init(target_dir: &Path, url: &str) -> super::SROutput {
     output
 }
 
-/*
-* Adds, commits and pushes any changes to the remote git repo.
-*/
+/// Adds, commits and pushes any local component changes to the remote git repo.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `message` commit message to attach to the changes when pushing to the remote repository.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
@@ -210,9 +217,11 @@ pub fn git_add_and_commit(target_dir: &Path, message: String) -> super::SROutput
     output
 }
 
-/*
-* Pulls latest updates from a component's git repo.
-*/
+/// Pulls latest updates from a component's git repo.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn git_pull(target_dir: &Path) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
@@ -264,9 +273,12 @@ pub fn git_pull(target_dir: &Path) -> super::SROutput {
     output
 }
 
-/*
-* Interface to the git command to download a component from a repo.
-*/
+/// Interface to the git command to download a component from a repo.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// 'url' The URL of the remote repository to clone (copy).
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn git_clone(target_dir: &Path, url: &str) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,

@@ -2,6 +2,13 @@
 name = "sliderule"
 version = "0.1.0"
 authors = ["Jeremy Wright <wrightjmf@gmail.com>"]
+description = "Encapsulates an implementation of the Distributed OSHW (Open Source Hardware) Framework (DOF) being developed by Mach 30."
+documentation = "https://docs.rs/sliderule/0.1.0/sliderule/"
+homepage = "https://github.com/Mach30/sliderule"
+repository = "https://github.com/7BIndustries/sliderule-rs"
+keywords = ["sliderule", "oshw", "open source", "open hardware", "open source hardware"]
+license = "Apache-2.0"
+maintenance = { status = "actively-developed" }
 
 [dependencies]
 os_info = "1.1"

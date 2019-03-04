@@ -269,9 +269,23 @@ pub fn create_component(
     output
 }
 
-/*
- * Uploads any changes to the project to the remote repository.
-*/
+/// Uploads any changes to the project/component to a remote repository.
+///
+/// The remote repository at `url` must exist before trying to upload changes to it.
+/// `target_dir` must be a valid Sliderule component directory.
+/// `messages` should describe the changes that were made since the last upload.
+///
+/// # Examples
+///
+/// ```no_run
+/// let temp_dir = std::env::temp_dir();
+///
+/// let output = sliderule::upload_component(
+///     &temp_dir.join("newproject"),
+///     String::from("Initial commit"),
+///     &String::from("https://repo.com/user/newproject")
+/// );
+/// ```
 pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SROutput {
     // Make sure that our package.json file is updated with all the license info
     let mut output = amalgamate_licenses(&target_dir);
@@ -303,9 +317,24 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SRO
     output
 }
 
-/*
- * Converts a local component into a remote component, asking for a remote repo to push it to.
-*/
+/// Converts a local component into a remote component, uploading it to the remote repo and then
+/// installing via npm.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `name` is the name of the component in the `components` directory to refactor.
+/// `url` is the remote URL to push the component to. This URL must exist before this is called.
+///
+/// # Examples
+///
+/// ```no_run
+/// let temp_dir = std::env::temp_dir();
+///
+/// let output = sliderule::refactor(
+///     &temp_dir.join("newproject"),
+///     String::from("level1_component"),
+///     String::from("https://repo.com/user/level1_component")
+/// );
+/// ```
 pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
     let mut output = SROutput {
         status: 0,
@@ -350,9 +379,37 @@ pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
     output
 }
 
-/*
- * Removes a component from the project structure.
-*/
+/// Removes a component (local or remote) from the project directory structure.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `name` must be a valid name for a component in either the `components` or
+/// the `node_modules` directories.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// // Remove a local component so we can test it
+/// let output = sliderule::remove(&test_dir.join("toplevel"), "level1");
+///
+/// // Make sure that the level1 directory was removed
+/// assert!(!&test_dir
+///         .join("toplevel")
+///         .join("components")
+///         .join("level1")
+///         .exists());
+/// ```
 pub fn remove(target_dir: &Path, name: &str) -> SROutput {
     let mut output = SROutput {
         status: 0,
@@ -442,9 +499,42 @@ pub fn remove(target_dir: &Path, name: &str) -> SROutput {
     output
 }
 
-/*
- * Allows the user to change the source and/or documentation licenses for the project.
-*/
+/// Allows the user to change the source and/or documentation licenses for the project.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `source_license` Must be an SPDX compliant string for the component's source files (mechanical/electrical CAD, etc)
+/// `doc_license` Must be an SPDX compliant string for the documentation content of the component
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let output = sliderule::change_licenses(
+///    &test_dir.join("toplevel"),
+///    String::from("TestSourceLicense"),
+///    String::from("TestDocLicense"),
+///    );
+///
+/// assert_eq!(0, output.status);
+/// assert!(output.stderr.is_empty());
+/// let content = fs::read_to_string(test_dir.join("toplevel")
+///    .join(".sr"))
+///    .expect("Unable to read file");
+///
+/// assert!(content.contains("TestSourceLicense"));
+/// assert!(content.contains("TestDocLicense"));
+/// ```
 pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: String) -> SROutput {
     // Update the source and documentation licenses
     let output = update_yaml_value(&target_dir.join(".sr"), "source_license", &source_license);
@@ -467,8 +557,45 @@ pub fn change_licenses(target_dir: &Path, source_license: String, doc_license: S
 }
 
 /*
- * Adds a remote component via URL to node_modules.
+ *
 */
+/// Adds a component from the remote repository at the provided URL to the node_modules directory.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `url` URL of the repository the remote component resides in.
+/// 'cache` Allows a user to specify a temporary cache for npm to use. Mostly for testing purposes.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+/// # let cache_dir = temp_dir.join(format!("cache_{}", uuid::Uuid::new_v4()));
+///
+/// let output = sliderule::add_remote_component(
+///     &test_dir.join("toplevel"),
+///     "https://github.com/jmwright/arduino-sr.git",
+///     Some(cache_dir.to_string_lossy().to_string()),
+/// );
+///
+/// assert_eq!(0, output.status);
+///
+/// let component_path = test_dir
+///     .join("toplevel")
+///     .join("node_modules")
+///     .join("arduino-sr");
+///
+/// assert!(component_path.exists());
+/// ```
 pub fn add_remote_component(target_dir: &Path, url: &str, cache: Option<String>) -> SROutput {
     let mut output = npm_sr::npm_install(target_dir, &url, cache);
 
@@ -491,9 +618,43 @@ pub fn add_remote_component(target_dir: &Path, url: &str, cache: Option<String>)
     output
 }
 
-/*
- * Removes a remote component via the name.
- */
+/// Removes a remote component via the name.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `name` name of the component to remove. The node_modules directory is assumed, so name conflicts
+/// with local components are ignored.
+/// 'cache` Allows a user to specify a temporary cache for npm to use. Mostly for testing purposes.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+/// # let cache_dir = temp_dir.join(format!("cache_{}", uuid::Uuid::new_v4()));
+///
+/// let output = sliderule::remove_remote_component(
+///            &test_dir.join("toplevel"),
+///            "blink_firmware",
+///            Some(cache_dir.to_string_lossy().to_string()),
+///        );
+///
+/// assert_eq!(0, output.status);
+///
+/// assert!(!test_dir
+///     .join("toplevel")
+///     .join("node_modules")
+///     .join("blink_firmware")
+///     .exists());
+/// ```
 pub fn remove_remote_component(target_dir: &Path, name: &str, cache: Option<String>) -> SROutput {
     // Use npm to remove the remote component
     let mut output = npm_sr::npm_uninstall(target_dir, name, cache);
@@ -513,9 +674,35 @@ pub fn remove_remote_component(target_dir: &Path, name: &str, cache: Option<Stri
     output
 }
 
-/*
- * Downloads (copies) a component from a remote repository.
-*/
+/// Downloads a copy of a component from the remote repository at the specified URL.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `url` URL of the remote repository to download the component from.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let output = sliderule::download_component(
+///             &test_dir.join("toplevel"),
+///             "https://github.com/jmwright/toplevel.git",
+///         );
+///
+/// assert_eq!(0, output.status);
+///
+/// assert!(output.stdout[1].contains("Component was downloaded successfully."));
+/// ```
 pub fn download_component(target_dir: &Path, url: &str) -> SROutput {
     let mut output = git_sr::git_clone(target_dir, url);
 
@@ -534,9 +721,31 @@ pub fn download_component(target_dir: &Path, url: &str) -> SROutput {
     output
 }
 
-/*
- * Updates all remote components in node_modules
- */
+/// Updates all remote component in the node_modules directory.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let output = sliderule::update_dependencies(&test_dir.join("toplevel"));
+///
+/// assert_eq!(0, output.status);
+///
+/// assert!(output.stdout[1].contains("Dependencies were updated successfully."));
+/// ```
 pub fn update_dependencies(target_dir: &Path) -> SROutput {
     let mut output = npm_sr::npm_install(target_dir, "", None);
 
@@ -562,6 +771,32 @@ pub fn update_dependencies(target_dir: &Path) -> SROutput {
 /*
  * Updates the local component who's directory we're in
 */
+/// Downloads updates from the remote repository that is set for this directory.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let output = sliderule::update_local_component(&test_dir.join("toplevel"));
+///
+/// assert_eq!(0, output.status);
+///
+/// assert_eq!(output.stdout[0].trim(), "Already up to date.");
+/// assert_eq!(output.stdout[1], "Component updated successfully.");
+/// ```
 pub fn update_local_component(target_dir: &Path) -> SROutput {
     let mut output = SROutput {
         status: 0,
@@ -595,6 +830,152 @@ pub fn update_local_component(target_dir: &Path) -> SROutput {
     }
 
     output
+}
+
+/// Prints out each of the licenses in the component's directory tree so that
+/// users can see what licenses are in use and where they reside.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let license_listing = sliderule::list_all_licenses(&test_dir.join("toplevel"));
+///
+/// assert!(license_listing.contains("Licenses Specified In This Component:"));
+/// assert!(license_listing.contains("Unlicense"));
+/// assert!(license_listing.contains("CC0-1.0"));
+/// assert!(license_listing.contains("NotASourceLicense"));
+/// assert!(license_listing.contains("NotADocLicense"));
+/// assert!(license_listing.contains("CC-BY-4.0"));
+/// ```
+pub fn list_all_licenses(target_dir: &Path) -> String {
+    let nl = get_newline();
+    let mut license_listing = String::from("Licenses Specified In This Component:");
+    license_listing.push_str(&nl);
+
+    // Get the ordered listing of the component hierarchy
+    let sr_entries = get_sr_paths(target_dir);
+
+    // Compile the licenses of all the entries
+    for entry in sr_entries {
+        // We want the licenses from our current dot files
+        let source_value = get_yaml_value(&entry, "source_license");
+        let doc_value = get_yaml_value(&entry, "documentation_license");
+
+        license_listing.push_str(&format!(
+            "Path: {}, Source License: {}, Documentation License: {}{}",
+            entry.display(),
+            source_value,
+            doc_value,
+            nl
+        ));
+    }
+
+    license_listing
+}
+
+/// Extracts the source and documentation licenses from a component's .sr file.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// # Examples
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let licenses = sliderule::get_licenses(&test_dir);
+///
+/// assert_eq!(licenses.0, "Unlicense");
+/// assert_eq!(licenses.1, "CC0-1.0");
+/// ```
+pub fn get_licenses(target_dir: &Path) -> (String, String) {
+    let sr_file: PathBuf;
+
+    // We can hand back the default licenses, if nothing else
+    let mut source_license = String::from("Unlicense");
+    let mut doc_license = String::from("CC0-1.0");
+
+    // If we're in a component directory, pull the license info from that
+    sr_file = target_dir.join(".sr");
+
+    // Safety check to make sure the file exists
+    if sr_file.exists() {
+        // Extract the licenses from the file
+        source_license = get_yaml_value(&sr_file, "source_license");
+        doc_license = get_yaml_value(&sr_file, "documentation_license");
+    }
+
+    (source_license, doc_license)
+}
+
+/// Figures out and returns what depth within another component's hierarchy
+/// the component is at.
+/// 0 = A top level component is probably being created
+/// 1 = A top level component with no parent
+/// 2 = A sub-component at depth n
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let level = sliderule::get_level(&test_dir.join("components").join("level1"));
+///
+/// assert_eq!(0, level)
+/// ```
+pub fn get_level(target_dir: &Path) -> u8 {
+    let level: u8;
+
+    // Allows us to check if there is a .sr file in the current directory
+    let current_file = target_dir.join(".sr");
+
+    // Allows us to check if there is a .sr file in the parent directory
+    let parent_file = target_dir.join(".sr");
+
+    // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
+    if !parent_file.exists() && !current_file.exists() {
+        level = 0;
+    } else if !parent_file.exists() && current_file.exists() {
+        level = 1;
+    } else {
+        level = 2;
+    }
+
+    level
 }
 
 /*
@@ -821,59 +1202,6 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
         .expect("Could not render template using Liquid.");
 
     output
-}
-
-/*
- * Prints out each of the licenses in the component's directory tree so that
- * users can see where the licenses reside.
-*/
-pub fn list_all_licenses(target_dir: &Path) -> String {
-    let nl = get_newline();
-    let mut license_listing = String::from("Licenses Specified In This Component:");
-    license_listing.push_str(&nl);
-
-    // Get the ordered listing of the component hierarchy
-    let sr_entries = get_sr_paths(target_dir);
-
-    // Compile the licenses of all the entries
-    for entry in sr_entries {
-        // We want the licenses from our current dot files
-        let source_value = get_yaml_value(&entry, "source_license");
-        let doc_value = get_yaml_value(&entry, "documentation_license");
-
-        license_listing.push_str(&format!(
-            "Path: {}, Source License: {}, Documentation License: {}{}",
-            entry.display(),
-            source_value,
-            doc_value,
-            nl
-        ));
-    }
-
-    license_listing
-}
-
-/*
- * Extracts the source and documentation licenses from a component's .sr file.
-*/
-pub fn get_licenses(target_dir: &Path) -> (String, String) {
-    let sr_file: PathBuf;
-
-    // We can hand back the default licenses, if nothing else
-    let mut source_license = String::from("Unlicense");
-    let mut doc_license = String::from("CC0-1.0");
-
-    // If we're in a component directory, pull the license info from that
-    sr_file = target_dir.join(".sr");
-
-    // Safety check to make sure the file exists
-    if sr_file.exists() {
-        // Extract the licenses from the file
-        source_license = get_yaml_value(&sr_file, "source_license");
-        doc_license = get_yaml_value(&sr_file, "documentation_license");
-    }
-
-    (source_license, doc_license)
 }
 
 /*
@@ -1209,33 +1537,6 @@ fn combine_sroutputs(mut dest: SROutput, src: SROutput) -> SROutput {
     }
 
     dest
-}
-
-/*
- * Figures out what depth the component is at.
- * 0 = A top level component is probably being created
- * 1 = A top level component with no parent
- * 2 = A sub-component at depth n
- */
-pub fn get_level(target_dir: &Path) -> u8 {
-    let level: u8;
-
-    // Allows us to check if there is a .sr file in the current directory
-    let current_file = target_dir.join(".sr");
-
-    // Allows us to check if there is a .sr file in the parent directory
-    let parent_file = target_dir.join(".sr");
-
-    // If the parent directory contains a .sr file, we have a sub-component, if not we have a top level component
-    if !parent_file.exists() && !current_file.exists() {
-        level = 0;
-    } else if !parent_file.exists() && current_file.exists() {
-        level = 1;
-    } else {
-        level = 2;
-    }
-
-    level
 }
 
 pub mod git_sr;
@@ -2140,7 +2441,6 @@ mod tests {
      * Sets up a test directory for our use.
      */
     fn set_up(temp_dir: &PathBuf, dir_name: &str) -> PathBuf {
-        // let url = format!("git://127.0.0.1/{}", dir_name);
         let url = "https://github.com/jmwright/toplevel.git";
 
         let uuid_dir = uuid::Uuid::new_v4();
