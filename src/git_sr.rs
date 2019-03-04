@@ -7,7 +7,6 @@ struct Args {
     arg_remote: Option<String>,
 }
 
-
 /// Uses the installed git command to initialize a new component project repo.
 ///
 /// `target_dir` must be a valid Sliderule component directory.
