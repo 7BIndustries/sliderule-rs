@@ -6,7 +6,7 @@ description = "Encapsulates an implementation of the Distributed OSHW (Open Sour
 documentation = "https://docs.rs/sliderule/0.1.0/sliderule/"
 homepage = "https://github.com/Mach30/sliderule"
 repository = "https://github.com/7BIndustries/sliderule-rs"
-keywords = ["sliderule", "oshw", "open source", "open hardware", "open source hardware"]
+keywords = ["sliderule", "oshw", "open-source", "open-hardware", "open-source-hardware"]
 license = "Apache-2.0"
 maintenance = { status = "actively-developed" }
 
