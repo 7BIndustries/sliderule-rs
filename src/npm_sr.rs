@@ -28,9 +28,13 @@ fn find_npm_windows() -> String {
     output_str
 }
 
-/*
-* Attempts to use npm, if installed, otherwise tries to mimic what npm would do.
-*/
+/// Attempts to use npm to install a remote component, given a URL of a remote repository.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// 'url' The URL of the remote repository for npm to pull the component from.
+/// 'cache` Allows a user to specify a temporary cache for npm to use. Mostly for testing purposes.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
@@ -46,7 +50,7 @@ pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super
 
     // Set the command name properly based on which OS the user is running
     if info.os_type() == os_info::Type::Windows {
-        cmd_name = find_npm_windows(); //r"C:\Program Files\nodejs\npm.cmd";
+        cmd_name = find_npm_windows();
     }
 
     // If the caller has selected to use a temporary cache, configure npm to use that
@@ -99,7 +103,7 @@ pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super
         }
     }
 
-    // Collect all of the other stdout entrie
+    // Collect all of the other stdout entries
     output
         .stdout
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
@@ -117,9 +121,14 @@ pub fn npm_install(target_dir: &Path, url: &str, cache: Option<String>) -> super
     output
 }
 
-/*
-* Uses the npm command to remove a remote component.
-*/
+/// Uses the npm command to remove a remote component from the node_modules directory.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+/// `name` name of the component to remove. The node_modules directory is assumed, so name conflicts
+/// with local components are ignored.
+/// 'cache` Allows a user to specify a temporary cache for npm to use. Mostly for testing purposes.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
 pub fn npm_uninstall(target_dir: &Path, name: &str, cache: Option<String>) -> super::SROutput {
     let mut output = super::SROutput {
         status: 0,
@@ -182,7 +191,7 @@ pub fn npm_uninstall(target_dir: &Path, name: &str, cache: Option<String>) -> su
         ));
     }
 
-    // Collect all of the other stdout entrie
+    // Collect all of the other stdout entries
     output
         .stdout
         .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
