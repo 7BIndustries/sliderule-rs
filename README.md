@@ -22,9 +22,9 @@ The following is a list of the major operations available through this crate.
 
 There are also various helper functions to do things like getting what level a component is in a hierarchy and compiling the licenses of all components in a project.
 
-## Usage
+## API
 
-The documentation for this crate is hosted on crates.io along with the published version.
+This readme is just a general overview. The [API documentation](https://docs.rs/sliderule/0.1.0/sliderule/) for this crate is available on crates.io.
 
 ## Running Tests
 
