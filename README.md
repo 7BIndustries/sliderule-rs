@@ -3,6 +3,7 @@
 [![Travis Build Status](https://travis-ci.org/7BIndustries/sliderule-rs.svg?branch=master)](https://travis-ci.org/7BIndustries/sliderule-rs)
 [![Appveyor Build Status](https://ci.appveyor.com/api/projects/status/b2cvxvvv8irflqgu/branch/master?svg=true)](https://ci.appveyor.com/project/jmwright/sliderule-rs)
 [![codecov](https://codecov.io/gh/7BIndustries/sliderule-rs/branch/master/graph/badge.svg)](https://codecov.io/gh/7BIndustries/sliderule-rs)
+[![](http://meritbadge.herokuapp.com/sliderule)](https://crates.io/crates/sliderule)
 
 ## Introduction
 This Rust crate encapsulates an implementation of the Distributed OSHW (Open Source Hardware) Framework [DOF](https://github.com/Mach30/dof) being developed by [Mach 30](http://mach30.org/).
@@ -22,9 +23,9 @@ The following is a list of the major operations available through this crate.
 
 There are also various helper functions to do things like getting what level a component is in a hierarchy and compiling the licenses of all components in a project.
 
-## Usage
+## API
 
-The documentation for this crate is hosted on crates.io along with the published version.
+This readme is just a general overview. The [API documentation](https://docs.rs/sliderule/0.1.0/sliderule/) for this crate is available on crates.io.
 
 ## Running Tests
 
