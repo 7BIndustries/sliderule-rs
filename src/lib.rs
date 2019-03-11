@@ -269,6 +269,42 @@ pub fn create_component(
     output
 }
 
+/// Allows a user to set the username and password for a component's remote URL.
+/// This can be a security risk on multi-user systems since the password is stored in plain text inside
+/// the .git/config file. Users should be encouraged to use ssh instead of https to avoid this security issue.
+pub fn remote_login(
+    target_dir: &Path,
+    url: Option<String>,
+    username: Option<String>,
+    password: Option<String>,
+) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    let mut final_url = url.unwrap().to_owned();
+    if final_url.contains("https") {
+        // Format the https string properly to contain the username and password
+        final_url = add_user_pass_to_https(final_url, username, password);
+    }
+
+    // Initialize as a repo only if needed
+    if !target_dir.join(".git").exists() {
+        // Initialize the git repository and set the remote URL to push to
+        let git_output = git_sr::git_init(target_dir, &final_url);
+        output = combine_sroutputs(output, git_output);
+    } else {
+        // Change/set the remote URL of the component
+        let git_output = git_sr::git_set_remote_url(target_dir, &final_url);
+        output = combine_sroutputs(output, git_output);
+    }
+
+    output
+}
+
 /// Uploads any changes to the project/component to a remote repository.
 ///
 /// The remote repository at `url` must exist before trying to upload changes to it.
@@ -283,17 +319,31 @@ pub fn create_component(
 /// let output = sliderule::upload_component(
 ///     &temp_dir.join("newproject"),
 ///     String::from("Initial commit"),
-///     &String::from("https://repo.com/user/newproject")
+///     String::from("https://repo.com/user/newproject"),
+///     None,
+///     None
 /// );
 /// ```
-pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SROutput {
+pub fn upload_component(
+    target_dir: &Path,
+    message: String,
+    url: String,
+    username: Option<String>,
+    password: Option<String>,
+) -> SROutput {
     // Make sure that our package.json file is updated with all the license info
     let mut output = amalgamate_licenses(&target_dir);
 
     // Initialize as a repo only if needed
     if !target_dir.join(".git").exists() {
+        let mut final_url = url.to_owned();
+        if final_url.contains("https") {
+            // Format the https string properly to contain the username and password
+            final_url = add_user_pass_to_https(final_url, username, password);
+        }
+
         // Initialize the git repository and set the remote URL to push to
-        let git_output = git_sr::git_init(target_dir, &url);
+        let git_output = git_sr::git_init(target_dir, &final_url);
         output = combine_sroutputs(output, git_output);
     }
 
@@ -315,6 +365,28 @@ pub fn upload_component(target_dir: &Path, message: String, url: &String) -> SRO
         .push(String::from("Done uploading component."));
 
     output
+}
+
+fn add_user_pass_to_https(
+    url: String,
+    username: Option<String>,
+    password: Option<String>,
+) -> String {
+    let mut userpass = String::new();
+    let mut final_url = String::new();
+
+    // If we have a username and password, rework the URL to store them
+    if username.is_some() && password.is_some() {
+        userpass.push_str("https://");
+        userpass.push_str(&username.unwrap());
+        userpass.push_str(":");
+        userpass.push_str(&password.unwrap());
+        userpass.push_str("@");
+
+        final_url = url.replace("https://", &userpass);
+    }
+
+    final_url
 }
 
 /// Converts a local component into a remote component, uploading it to the remote repo and then
@@ -350,7 +422,9 @@ pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
         output = upload_component(
             &component_dir,
             String::from("Initial commit, refactoring component"),
-            &url,
+            url.to_owned(),
+            None,
+            None,
         );
 
         // Remove the local component
@@ -2275,7 +2349,9 @@ mod tests {
         let output = super::upload_component(
             &test_dir.join("nextlevel"),
             String::from("Initial commit"),
-            &String::from("git://127.0.0.1/nextlevel"),
+            String::from("git://127.0.0.1/nextlevel"),
+            None,
+            None,
         );
 
         if output.stderr.len() > 0 {
