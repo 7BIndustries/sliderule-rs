@@ -404,10 +404,18 @@ fn add_user_pass_to_https(
 /// let output = sliderule::refactor(
 ///     &temp_dir.join("newproject"),
 ///     String::from("level1_component"),
-///     String::from("https://repo.com/user/level1_component")
+///     String::from("https://repo.com/user/level1_component"),
+///     None,
+///     None
 /// );
 /// ```
-pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
+pub fn refactor(
+    target_dir: &Path,
+    name: String,
+    url: String,
+    username: Option<String>,
+    password: Option<String>,
+) -> SROutput {
     let mut output = SROutput {
         status: 0,
         wrapped_status: 0,
@@ -417,14 +425,22 @@ pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
 
     let component_dir = target_dir.join("components").join(&name);
 
+    let mut remote_url = String::new();
+    if url.starts_with("git@") {
+        remote_url.push_str("git+ssh://");
+        remote_url.push_str(&url);
+    } else {
+        remote_url = url.to_owned();
+    }
+
     if component_dir.exists() {
         // Upload the current component to the remote repo
         output = upload_component(
             &component_dir,
             String::from("Initial commit, refactoring component"),
             url.to_owned(),
-            None,
-            None,
+            username,
+            password,
         );
 
         // Remove the local component
@@ -432,7 +448,7 @@ pub fn refactor(target_dir: &Path, name: String, url: String) -> SROutput {
         output = combine_sroutputs(output, remove_output);
 
         // Install the newly minted remote component using npm
-        let add_output = add_remote_component(&target_dir, &url, None);
+        let add_output = add_remote_component(&target_dir, &remote_url, None);
         output = combine_sroutputs(output, add_output);
 
         // Shouldn't need it here, but make sure that our package.json file is updated with all the license info
@@ -2255,6 +2271,14 @@ mod tests {
             String::from("TestDocLicense"),
         );
 
+        // Make sure the new directory exists and is a valid component
+        assert!(is_valid_component(
+            &test_dir.join("toplevel").join("components").join("remote"),
+            "remote",
+            "TestSourceLicense",
+            "TestDocLicense"
+        ));
+
         // Make sure we did not get any errors
         assert_eq!(0, output.stderr.len());
 
@@ -2262,6 +2286,8 @@ mod tests {
             &test_dir.join("toplevel"),
             String::from("remote"),
             String::from("git://127.0.0.1/remote"),
+            None,
+            None,
         );
 
         if output.stderr.len() > 0 {
