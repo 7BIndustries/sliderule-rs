@@ -1,6 +1,6 @@
 [package]
 name = "sliderule"
-version = "0.2.0"
+version = "0.2.1"
 authors = ["Jeremy Wright <wrightjmf@gmail.com>"]
 description = "Encapsulates an implementation of the Distributed OSHW (Open Source Hardware) Framework (DOF) being developed by Mach 30."
 documentation = "https://docs.rs/sliderule/0.1.0/sliderule/"
