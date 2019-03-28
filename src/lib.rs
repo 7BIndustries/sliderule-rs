@@ -1068,6 +1068,22 @@ pub fn get_level(target_dir: &Path) -> u8 {
     level
 }
 
+/// Simply returns the version number of this crate.
+/// May be expanded later to include a build number or sha checksum.
+///
+/// # Examples
+///
+/// ```
+/// let version_num = sliderule::get_version();
+///
+/// assert_eq!(version_num, "0.2.1");
+/// ```
+pub fn get_version() -> String {
+    let version = String::from("0.2.1");
+
+    return version;
+}
+
 /*
  * Generates a template README.md file to help the user get started.
 */
@@ -2505,6 +2521,13 @@ mod tests {
             path_parts[path_parts.len() - 3],
             Component::Normal(OsStr::new("node_modules"))
         );
+    }
+
+    #[test]
+    fn test_get_version() {
+        let version_num = super::get_version();
+
+        assert_eq!(version_num, "0.2.1");
     }
 
     // Cleans up the git daemon processes after tests run
