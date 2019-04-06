@@ -367,3 +367,97 @@ pub fn git_set_remote_url(target_dir: &Path, url: &str) -> super::SROutput {
 
     output
 }
+
+/// Runs the equivalent of `git status` on a component to get a listing of the high-level changes.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
+pub fn git_status(target_dir: &Path) -> super::SROutput {
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+
+    let stdoutput = match Command::new("git")
+        .args(&["status"])
+        .current_dir(target_dir)
+        .output()
+    {
+        Ok(out) => out,
+        Err(e) => {
+            output.status = 111;
+            output.stderr.push(format!(
+                "ERROR: Unable to change the URL on the component repository: {}",
+                e
+            ));
+            return output;
+        }
+    };
+
+    // Collect all of the other stdout entries
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+
+    // If there were errors, make sure we collect them
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
+
+    return output;
+}
+
+/// Runs the equivalent of `git status` on a component to get the detailed changes per file.
+///
+/// `target_dir` must be a valid Sliderule component directory.
+///
+/// This module is primarily for sliderule-rs use, and direct use should be avoided in most situations.
+pub fn git_diff(target_dir: &Path) -> super::SROutput {
+    let mut output = super::SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stdout: Vec::new(),
+        stderr: Vec::new(),
+    };
+
+    let stdoutput = match Command::new("git")
+        .args(&["--no-pager", "diff"])
+        .current_dir(target_dir)
+        .output()
+    {
+        Ok(out) => out,
+        Err(e) => {
+            output.status = 112;
+            output.stderr.push(format!(
+                "ERROR: Unable to change the URL on the component repository: {}",
+                e
+            ));
+            return output;
+        }
+    };
+
+    // Collect all of the other stdout entries
+    output
+        .stdout
+        .push(String::from_utf8_lossy(&stdoutput.stdout).to_string());
+
+    // If there were errors, make sure we collect them
+    output
+        .stderr
+        .push(String::from_utf8_lossy(&stdoutput.stderr).to_string());
+
+    // If we have something other than a 0 exit status, report that
+    if stdoutput.status.code().unwrap() != 0 {
+        output.wrapped_status = stdoutput.status.code().unwrap();
+    }
+
+    return output;
+}

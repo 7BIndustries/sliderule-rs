@@ -1084,6 +1084,53 @@ pub fn get_version() -> String {
     return version;
 }
 
+/// Returns a listing of the changes that have been made to the component since the last upload.
+///
+/// # Examples
+///
+/// ```
+/// # use std::fs;
+/// # use std::fs::File;
+/// # use std::io::prelude::*;
+/// # let temp_dir = std::env::temp_dir();
+/// # let url = "https://github.com/jmwright/toplevel.git";
+/// # let uuid_dir = uuid::Uuid::new_v4();
+/// # let test_dir_name = format!("temp_{}", uuid_dir);
+/// # fs::create_dir(temp_dir.join(&test_dir_name)).expect("Unable to create temporary directory.");
+/// # match git2::Repository::clone(&url, temp_dir.join(&test_dir_name).join("toplevel")) {
+/// # Ok(repo) => repo,
+/// # Err(e) => panic!("failed to clone: {}", e),
+/// # };
+/// # let test_dir = temp_dir.join(test_dir_name);
+///
+/// let output = sliderule::list_changes(&test_dir.join("toplevel"));
+/// assert_eq!(output.stdout[0], "No changes.");
+///
+/// let file = File::create(test_dir.join("toplevel").join("foo.txt"));
+/// file.unwrap().write_all(b"Hello, world!").expect("Could not write to test file while listing component changes.");
+///
+/// let output = sliderule::list_changes(&test_dir.join("toplevel"));
+/// assert!(output.stdout[0] != "No changes.");
+/// ```
+pub fn list_changes(target_dir: &Path) -> SROutput {
+    let mut output: SROutput;
+
+    output = git_sr::git_diff(target_dir);
+
+    let status_output = git_sr::git_status(target_dir);
+
+    output = combine_sroutputs(output, status_output);
+
+    // If `git status` returns 'nothing to commit' then we can simply tell the user that there are no changes
+    if output.stdout[0].contains(&String::from("nothing to commit, working tree clean"))
+        || output.stdout[1].contains(&String::from("nothing to commit, working tree clean"))
+    {
+        output.stdout = vec![String::from("No changes.")];
+    }
+
+    return output;
+}
+
 /*
  * Generates a template README.md file to help the user get started.
 */
@@ -1654,6 +1701,7 @@ mod tests {
     use std::env;
     use std::ffi::OsStr;
     use std::fs;
+    use std::fs::File;
     use std::path::{Component, Path};
 
     extern crate git2;
@@ -2528,6 +2576,27 @@ mod tests {
         let version_num = super::get_version();
 
         assert_eq!(version_num, "0.2.1");
+    }
+
+    #[test]
+    fn test_list_changes() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Make sure that there are no changes on a fresh directory
+        let output = super::list_changes(&test_dir.join("toplevel"));
+        assert_eq!(output.stdout[0], "No changes.");
+
+        // Create a file so that we can test whether changes are shown
+        let file = File::create(test_dir.join("toplevel").join("foo.txt"));
+        file.unwrap()
+            .write_all(b"Hello, world!")
+            .expect("Could not write to test file while listing component changes.");
+
+        let output = super::list_changes(&test_dir.join("toplevel"));
+        assert!(output.stdout[0] != "No changes.");
     }
 
     // Cleans up the git daemon processes after tests run
