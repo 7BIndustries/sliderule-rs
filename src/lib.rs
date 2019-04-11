@@ -246,8 +246,20 @@ pub fn create_component(
     let file_output = generate_readme(&component_dir, &name);
     output = combine_sroutputs(output, file_output);
 
-    // Generate bom_data.yaml
-    let file_output = generate_bom(&component_dir, &name);
+    // Generate bom_data.yaml (replaced by parts.yaml, tools.yaml and precautions.yaml)
+    // let file_output = generate_bom(&component_dir, &name);
+    // output = combine_sroutputs(output, file_output);
+
+    // Generate parts.yaml to hold components that are considered parts instead of tools
+    let file_output = generate_parts_yaml(&component_dir);
+    output = combine_sroutputs(output, file_output);
+
+    // Generate tools.yaml to hold components that are considered tools instead of parts
+    let file_output = generate_tools_yaml(&component_dir);
+    output = combine_sroutputs(output, file_output);
+
+    // Generate precautions.yaml to hold the precautions related to this component
+    let file_output = generate_precautions_yaml(&component_dir);
     output = combine_sroutputs(output, file_output);
 
     // Generate package.json, if needed
@@ -1131,6 +1143,29 @@ pub fn list_changes(target_dir: &Path) -> SROutput {
     return output;
 }
 
+/// Converts a component description to a string that can be used as a component ID and file/folder name.
+///
+/// # Examples
+///
+/// ```
+/// let munged = sliderule::munge_component_description(&String::from("Adhesive Tape"));
+///
+/// assert_eq!(munged, "adhesive_tape");
+/// ```
+pub fn munge_component_description(desc: &String) -> String {
+    let mut prefix = String::from("_");
+    let mut munged = desc.replace(" ", "_").replace(".", "_").to_lowercase();
+
+    // Check to see if we have a leading number
+    if munged.chars().next().unwrap().is_digit(10) {
+        prefix.push_str(&munged);
+
+        munged = prefix;
+    }
+
+    return munged;
+}
+
 /*
  * Generates a template README.md file to help the user get started.
 */
@@ -1199,6 +1234,99 @@ fn generate_bom(target_dir: &Path, name: &str) -> SROutput {
     } else {
         output.stdout.push(String::from(
             "bom_data.yaml already exists, using existing file and refusing to overwrite.",
+        ));
+    }
+
+    output
+}
+
+/*
+ * Generates the parts.yaml file that holds components that are parts rather than tools.
+ */
+fn generate_parts_yaml(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    if !target_dir.join("parts.yaml").exists() {
+        // Write the template text into the readme file
+        match fs::write(target_dir.join("parts.yaml"), "") {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 17;
+                output
+                    .stderr
+                    .push(format!("Could not write to parts.yaml: {}", e));
+            }
+        };
+    } else {
+        output.stdout.push(String::from(
+            "parts.yaml already exists, using existing file and refusing to overwrite.",
+        ));
+    }
+
+    output
+}
+
+/*
+ * Generates the tools.yaml file that holds components that are tools rather than parts.
+ */
+fn generate_tools_yaml(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    if !target_dir.join("tools.yaml").exists() {
+        // Write the template text into the readme file
+        match fs::write(target_dir.join("tools.yaml"), "") {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 17;
+                output
+                    .stderr
+                    .push(format!("Could not write to tools.yaml: {}", e));
+            }
+        };
+    } else {
+        output.stdout.push(String::from(
+            "tools.yaml already exists, using existing file and refusing to overwrite.",
+        ));
+    }
+
+    output
+}
+
+/*
+ * Generates the yaml file that holds any precautions for this component.
+ */
+fn generate_precautions_yaml(target_dir: &Path) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    if !target_dir.join("precautions.yaml").exists() {
+        // Write the template text into the readme file
+        match fs::write(target_dir.join("precautions.yaml"), "[]") {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 17;
+                output
+                    .stderr
+                    .push(format!("Could not write to precautions.yaml: {}", e));
+            }
+        };
+    } else {
+        output.stdout.push(String::from(
+            "precautions.yaml already exists, using existing file and refusing to overwrite.",
         ));
     }
 
@@ -2599,6 +2727,24 @@ mod tests {
         assert!(output.stdout[0] != "No changes.");
     }
 
+    #[test]
+    fn test_munge_component_description() {
+        // Check with a pretty standard description
+        let munged = super::munge_component_description(&String::from("Adhesive Tape"));
+
+        assert_eq!(munged, "adhesive_tape");
+
+        // Check with a leading numeric character
+        let munged = super::munge_component_description(&String::from("1 Adhesive Tape"));
+
+        assert_eq!(munged, "_1_adhesive_tape");
+
+        // Check with a dot
+        let munged = super::munge_component_description(&String::from("Adhesive.Tape"));
+
+        assert_eq!(munged, "adhesive_tape");
+    }
+
     // Cleans up the git daemon processes after tests run
     fn kill_git() {
         let info = os_info::get();
@@ -2678,11 +2824,23 @@ mod tests {
             }
         }
 
-        // Make sure the BoM data file exists
-        if !component_path.join("bom_data.yaml").exists() {
+        // Make sure the parts file exists
+        if !component_path.join("parts.yaml").exists() {
+            is_valid = false;
+            println!("The file {:?}/parts.yaml does not exist.", component_path);
+        }
+
+        // Make sure the tools file exists
+        if !component_path.join("tools.yaml").exists() {
+            is_valid = false;
+            println!("The file {:?}/tools.yaml does not exist.", component_path);
+        }
+
+        // Make sure that the precautions file exists
+        if !component_path.join("precautions.yaml").exists() {
             is_valid = false;
             println!(
-                "The file {:?}/bom_data.yaml does not exist.",
+                "The file {:?}/precautions.yaml does not exist.",
                 component_path
             );
         }
@@ -2720,27 +2878,12 @@ mod tests {
             println!("The directory {:?}/source does not exist.", component_path);
         }
 
-        let bom_file = component_path.join("bom_data.yaml");
+        // let bom_file = component_path.join("bom_data.yaml");
         let package_file = component_path.join("package.json");
         let readme_file = component_path.join("README.md");
         let dot_file = component_path.join(".sr");
 
         // Check the content of the files and directories as appropriate here
-        if !file_contains_content(
-            &bom_file,
-            0,
-            &format!("# Bill of Materials Data for {}", component_name),
-        ) {
-            is_valid = false;
-            println!(
-                "The bill to materials file in {:?} does not contain the correct header.",
-                component_path
-            );
-        }
-        if !file_contains_content(&bom_file, 12, "-component_1") {
-            is_valid = false;
-            println!("The bill to materials file in {:?} does not contain the '-component_1' entry in the right place.", component_path);
-        }
         if !file_contains_content(
             &package_file,
             9999,
@@ -2784,6 +2927,21 @@ mod tests {
             is_valid = false;
             println!("The .sr file in {:?} does not contain the the correct documentation license in the right place.", component_path);
         }
+        // if !file_contains_content(
+        //     &bom_file,
+        //     0,
+        //     &format!("# Bill of Materials Data for {}", component_name),
+        // ) {
+        //     is_valid = false;
+        //     println!(
+        //         "The bill to materials file in {:?} does not contain the correct header.",
+        //         component_path
+        //     );
+        // }
+        // if !file_contains_content(&bom_file, 12, "-component_1") {
+        //     is_valid = false;
+        //     println!("The bill to materials file in {:?} does not contain the '-component_1' entry in the right place.", component_path);
+        // }
 
         is_valid
     }
