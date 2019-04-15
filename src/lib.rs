@@ -1154,7 +1154,20 @@ pub fn list_changes(target_dir: &Path) -> SROutput {
 /// ```
 pub fn munge_component_description(desc: &String) -> String {
     let mut prefix = String::from("_");
-    let mut munged = desc.replace(" ", "_").replace(".", "_").to_lowercase();
+    let mut munged = desc
+        .replace(" ", "_")
+        .replace(".", "_")
+        .replace("/", "")
+        .replace("\\", "")
+        .replace("<", "")
+        .replace(">", "")
+        .replace(":", "")
+        .replace("\"", "")
+        .replace("|", "")
+        .replace("?", "")
+        .replace("*", "")
+        .replace("\0", "")
+        .to_lowercase();
 
     // Check to see if we have a leading number
     if munged.chars().next().unwrap().is_digit(10) {
