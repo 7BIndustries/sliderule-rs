@@ -1163,7 +1163,7 @@ pub fn list_changes(target_dir: &Path) -> SROutput {
 /// ```
 /// let munged = sliderule::munge_component_description(&String::from("Adhesive Tape"));
 ///
-/// assert_eq!(munged, "adhesive_tape");
+/// assert_eq!(munged, "adhesive-tape");
 /// ```
 pub fn munge_component_description(desc: &String) -> String {
     let mut prefix = String::from("_");
