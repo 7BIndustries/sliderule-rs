@@ -33,8 +33,10 @@
 
 extern crate liquid;
 extern crate os_info;
+extern crate regex;
 extern crate walkdir;
 
+use regex::Regex;
 use std::cmp::Ordering;
 use std::fs;
 use std::io::prelude::*;
@@ -111,6 +113,17 @@ pub fn create_component(
         component_dir = target_dir.join("components").join(&name);
     } else {
         component_dir = target_dir.join(&name);
+    }
+
+    // If the component directory exists, we should warn the user that a component with the same name exists
+    if component_dir.exists() {
+        output.status = 22;
+        output.stderr.push(format!(
+            "ERROR: A component with the name '{}' already exists.",
+            &name
+        ));
+
+        return output;
     }
 
     // Create a directory for our component
@@ -1155,8 +1168,8 @@ pub fn list_changes(target_dir: &Path) -> SROutput {
 pub fn munge_component_description(desc: &String) -> String {
     let mut prefix = String::from("_");
     let mut munged = desc
-        .replace(" ", "_")
-        .replace(".", "_")
+        .replace(" ", "-")
+        .replace(".", "-")
         .replace("/", "")
         .replace("\\", "")
         .replace("<", "")
@@ -1169,6 +1182,17 @@ pub fn munge_component_description(desc: &String) -> String {
         .replace("\0", "")
         .to_lowercase();
 
+    // Make sure the munged description is not too long
+    if munged.len() > 255 {
+        munged = munged[..255].to_string();
+    }
+
+    // Make sure the munged description does not end in a symbol
+    if munged.chars().last().unwrap() == '-' {
+        let re = Regex::new(r"-$").unwrap();
+        munged = re.replace_all(&munged, "").to_string();
+    }
+
     // Check to see if we have a leading number
     if munged.chars().next().unwrap().is_digit(10) {
         prefix.push_str(&munged);
@@ -1177,6 +1201,57 @@ pub fn munge_component_description(desc: &String) -> String {
     }
 
     return munged;
+}
+
+pub fn insert_item(
+    target_dir: &Path,
+    list_name: String,
+    item_name: String,
+    item_description: String,
+    item_qty: String,
+    quantity_units: String,
+    item_notes: String,
+    component_name: String,
+) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    // Add the things that need to be put substituted into the README file
+    let mut globals = liquid::value::Object::new();
+    globals.insert(
+        "item_name".into(),
+        liquid::value::Value::scalar(item_name.to_owned()),
+    );
+    globals.insert(
+        "item_description".into(),
+        liquid::value::Value::scalar(item_description.to_owned()),
+    );
+    globals.insert(
+        "item_qty".into(),
+        liquid::value::Value::scalar(item_qty.to_owned()),
+    );
+    globals.insert(
+        "quantity_units".into(),
+        liquid::value::Value::scalar(quantity_units.to_owned()),
+    );
+    globals.insert(
+        "item_notes".into(),
+        liquid::value::Value::scalar(item_notes.to_owned()),
+    );
+    globals.insert(
+        "component_name".into(),
+        liquid::value::Value::scalar(component_name.to_owned()),
+    );
+
+    let contents = render_template("item.liquid", &mut globals);
+
+    println!("{}", contents);
+
+    return output;
 }
 
 /*
@@ -1483,6 +1558,8 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
         contents = templates::package_json_template();
     } else if template_name == "README.md.liquid" {
         contents = templates::readme_template();
+    } else if template_name == "item.liquid" {
+        contents = templates::item_template();
     }
 
     // Render the output of the template using Liquid
@@ -2745,17 +2822,32 @@ mod tests {
         // Check with a pretty standard description
         let munged = super::munge_component_description(&String::from("Adhesive Tape"));
 
-        assert_eq!(munged, "adhesive_tape");
+        assert_eq!(munged, "adhesive-tape");
 
         // Check with a leading numeric character
         let munged = super::munge_component_description(&String::from("1 Adhesive Tape"));
 
-        assert_eq!(munged, "_1_adhesive_tape");
+        assert_eq!(munged, "_1-adhesive-tape");
 
         // Check with a dot
         let munged = super::munge_component_description(&String::from("Adhesive.Tape"));
 
-        assert_eq!(munged, "adhesive_tape");
+        assert_eq!(munged, "adhesive-tape");
+
+        // Test with a trailing space
+        let munged = super::munge_component_description(&String::from("Adhesive Tape "));
+
+        assert_eq!(munged, "adhesive-tape");
+
+        // Test with a filename over the 255 character limit
+        let mut string = String::new();
+        for _ in 0..256 {
+            string.push_str("x");
+        }
+
+        let munged = super::munge_component_description(&string);
+        println!("{}", munged.len());
+        assert_eq!(munged, string[..255]);
     }
 
     // Cleans up the git daemon processes after tests run

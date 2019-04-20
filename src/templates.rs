@@ -114,6 +114,33 @@ pub fn sr_file_template() -> String {
 }
 
 /*
+ * Returns the Liquid template text for a part item entry in parts.yaml or tools.yaml
+ */
+pub fn item_template() -> String {
+    let nl = &get_newline();
+
+    let mut contents = String::from("{{item_name}}:");
+    contents.push_str(nl);
+    contents.push_str("  id: {{item_name}}");
+    contents.push_str(nl);
+    contents.push_str("  description: {{item_description}}");
+    contents.push_str(nl);
+    contents.push_str("  quantity: {{item_qty}}");
+    contents.push_str(nl);
+    contents.push_str("  quantityUnits: {{quantity_units}}");
+    contents.push_str(nl);
+    contents.push_str("  options:");
+    contents.push_str(nl);
+    contents.push_str("  - {{component_name}}");
+    contents.push_str(nl);
+    contents.push_str("  selectedOption: {{component_name}}");
+    contents.push_str(nl);
+    contents.push_str("  notes: {{item_notes}}");
+
+    return contents;
+}
+
+/*
  * Gets the line ending that's appropriate for the OS we are running on.
  */
 fn get_newline() -> String {
