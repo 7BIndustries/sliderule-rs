@@ -88,7 +88,7 @@ pub fn readme_template() -> String {
 
     let mut contents = String::from("# {{name}}");
     contents.push_str(nl);
-    contents.push_str("New Sliderule component.");
+    contents.push_str("{{description}} - Sliderule component.");
     contents.push_str(nl);
     contents.push_str(nl);
     contents.push_str("---");
@@ -111,6 +111,33 @@ pub fn sr_file_template() -> String {
     contents.push_str(nl);
 
     contents
+}
+
+/*
+ * Returns the Liquid template text for a part item entry in parts.yaml or tools.yaml
+ */
+pub fn item_template() -> String {
+    let nl = &get_newline();
+
+    let mut contents = String::from("{{item_name}}:");
+    contents.push_str(nl);
+    contents.push_str("  id: {{item_name}}");
+    contents.push_str(nl);
+    contents.push_str("  description: {{item_description}}");
+    contents.push_str(nl);
+    contents.push_str("  quantity: {{item_qty}}");
+    contents.push_str(nl);
+    contents.push_str("  quantityUnits: {{quantity_units}}");
+    contents.push_str(nl);
+    contents.push_str("  options:");
+    contents.push_str(nl);
+    contents.push_str("  - {{component_name}}");
+    contents.push_str(nl);
+    contents.push_str("  selectedOption: {{component_name}}");
+    contents.push_str(nl);
+    contents.push_str("  notes: {{item_notes}}");
+
+    return contents;
 }
 
 /*

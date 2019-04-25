@@ -33,8 +33,10 @@
 
 extern crate liquid;
 extern crate os_info;
+extern crate regex;
 extern crate walkdir;
 
+use regex::Regex;
 use std::cmp::Ordering;
 use std::fs;
 use std::io::prelude::*;
@@ -51,9 +53,10 @@ pub struct SROutput {
 ///
 /// If `target_dir` is not a component directory, a new, top-level project component will be created.
 /// If `target_dir` is a component directory, a new component is created in the existing `components`
-/// directory. The name of the component is determine by the `name` parameter. Names are not allowed
-/// to include dots. The source materials license `source_license` and documentation license (`doc_license`)
-/// must be specified and must be from the [`SPDX`] license list.
+/// directory. The name of the component is determined by the `name` parameter. Names are not allowed
+/// to include dots and are usually generated based on the description upstream. The `description` should
+/// be a short description of the component. The source materials license `source_license` and
+/// documentation license (`doc_license`) must be specified and must be from the [`SPDX`] license list.
 ///
 /// [`SPDX`]: https://spdx.org/licenses/
 ///
@@ -68,6 +71,7 @@ pub struct SROutput {
 /// let output = sliderule::create_component(
 ///     &temp_dir,
 ///     String::from("newproject"),
+///     String::from("New Project"),
 ///     String::from("TestSourceLicense"),
 ///     String::from("TestDocLicense"),
 /// );
@@ -83,6 +87,7 @@ pub struct SROutput {
 /// let output = sliderule::create_component(
 ///     &temp_dir,
 ///     String::from("localcomponent"),
+///     String::from("Local Component"),
 ///     String::from("TestSourceLicense"),
 ///     String::from("TestDocLicense"),
 /// );
@@ -93,6 +98,7 @@ pub struct SROutput {
 pub fn create_component(
     target_dir: &Path,
     name: String,
+    description: String,
     source_license: String,
     doc_license: String,
 ) -> SROutput {
@@ -111,6 +117,17 @@ pub fn create_component(
         component_dir = target_dir.join("components").join(&name);
     } else {
         component_dir = target_dir.join(&name);
+    }
+
+    // If the component directory exists, we should warn the user that a component with the same name exists
+    if component_dir.exists() {
+        output.status = 22;
+        output.stderr.push(format!(
+            "ERROR: A component with the name '{}' already exists.",
+            &name
+        ));
+
+        return output;
     }
 
     // Create a directory for our component
@@ -243,7 +260,7 @@ pub fn create_component(
     }
 
     // Generate the template readme file
-    let file_output = generate_readme(&component_dir, &name);
+    let file_output = generate_readme(&component_dir, &name, &description);
     output = combine_sroutputs(output, file_output);
 
     // Generate bom_data.yaml (replaced by parts.yaml, tools.yaml and precautions.yaml)
@@ -1150,13 +1167,13 @@ pub fn list_changes(target_dir: &Path) -> SROutput {
 /// ```
 /// let munged = sliderule::munge_component_description(&String::from("Adhesive Tape"));
 ///
-/// assert_eq!(munged, "adhesive_tape");
+/// assert_eq!(munged, "adhesive-tape");
 /// ```
 pub fn munge_component_description(desc: &String) -> String {
     let mut prefix = String::from("_");
     let mut munged = desc
-        .replace(" ", "_")
-        .replace(".", "_")
+        .replace(" ", "-")
+        .replace(".", "-")
         .replace("/", "")
         .replace("\\", "")
         .replace("<", "")
@@ -1169,6 +1186,17 @@ pub fn munge_component_description(desc: &String) -> String {
         .replace("\0", "")
         .to_lowercase();
 
+    // Make sure the munged description is not too long
+    if munged.len() > 255 {
+        munged = munged[..255].to_string();
+    }
+
+    // Make sure the munged description does not end in a symbol
+    if munged.chars().last().unwrap() == '-' {
+        let re = Regex::new(r"-$").unwrap();
+        munged = re.replace_all(&munged, "").to_string();
+    }
+
     // Check to see if we have a leading number
     if munged.chars().next().unwrap().is_digit(10) {
         prefix.push_str(&munged);
@@ -1179,10 +1207,61 @@ pub fn munge_component_description(desc: &String) -> String {
     return munged;
 }
 
+pub fn insert_item(
+    target_dir: &Path,
+    list_name: String,
+    item_name: String,
+    item_description: String,
+    item_qty: String,
+    quantity_units: String,
+    item_notes: String,
+    component_name: String,
+) -> SROutput {
+    let mut output = SROutput {
+        status: 0,
+        wrapped_status: 0,
+        stderr: Vec::new(),
+        stdout: Vec::new(),
+    };
+
+    // Add the things that need to be put substituted into the README file
+    let mut globals = liquid::value::Object::new();
+    globals.insert(
+        "item_name".into(),
+        liquid::value::Value::scalar(item_name.to_owned()),
+    );
+    globals.insert(
+        "item_description".into(),
+        liquid::value::Value::scalar(item_description.to_owned()),
+    );
+    globals.insert(
+        "item_qty".into(),
+        liquid::value::Value::scalar(item_qty.to_owned()),
+    );
+    globals.insert(
+        "quantity_units".into(),
+        liquid::value::Value::scalar(quantity_units.to_owned()),
+    );
+    globals.insert(
+        "item_notes".into(),
+        liquid::value::Value::scalar(item_notes.to_owned()),
+    );
+    globals.insert(
+        "component_name".into(),
+        liquid::value::Value::scalar(component_name.to_owned()),
+    );
+
+    let contents = render_template("item.liquid", &mut globals);
+
+    // println!("{}", contents);
+
+    return output;
+}
+
 /*
  * Generates a template README.md file to help the user get started.
 */
-fn generate_readme(target_dir: &Path, name: &str) -> SROutput {
+fn generate_readme(target_dir: &Path, name: &str, description: &str) -> SROutput {
     let mut output = SROutput {
         status: 0,
         wrapped_status: 0,
@@ -1194,6 +1273,10 @@ fn generate_readme(target_dir: &Path, name: &str) -> SROutput {
         // Add the things that need to be put substituted into the README file
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar(name.to_owned()));
+        globals.insert(
+            "description".into(),
+            liquid::value::Value::scalar(description.to_owned()),
+        );
 
         let contents = render_template("README.md.liquid", &mut globals);
 
@@ -1483,6 +1566,8 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
         contents = templates::package_json_template();
     } else if template_name == "README.md.liquid" {
         contents = templates::readme_template();
+    } else if template_name == "item.liquid" {
+        contents = templates::item_template();
     }
 
     // Render the output of the template using Liquid
@@ -2089,6 +2174,10 @@ mod tests {
         // Render the template and make sure we got was expected
         let mut globals = liquid::value::Object::new();
         globals.insert("name".into(), liquid::value::Value::scalar("TopLevel"));
+        globals.insert(
+            "description".into(),
+            liquid::value::Value::scalar("Top Level"),
+        );
 
         let render = super::render_template("README.md.liquid", &mut globals);
 
@@ -2192,7 +2281,7 @@ mod tests {
         // Create the temporary directory we are going to be working with
         fs::create_dir(&temp_dir).expect("Could not create temporary directory for test.");
 
-        super::generate_readme(&temp_dir, "TopLevel");
+        super::generate_readme(&temp_dir, "TopLevel", "Top Level");
 
         let mut file =
             fs::File::open(&temp_dir.join("README.md")).expect("Unable to open the README.md file");
@@ -2309,6 +2398,7 @@ mod tests {
         assert!(is_valid_component(
             &component_path,
             "arduino-sr",
+            "Arduino",
             "Unlicense",
             "CC0-1.0"
         ));
@@ -2401,6 +2491,7 @@ mod tests {
         let output = super::create_component(
             &test_dir,
             String::from("nextlevel"),
+            String::from("Next Level"),
             String::from("TestSourceLicense"),
             String::from("TestDocLicense"),
         );
@@ -2418,6 +2509,7 @@ mod tests {
         assert!(is_valid_component(
             &test_dir.join("nextlevel"),
             "nextlevel",
+            "Next Level",
             "TestSourceLicense",
             "TestDocLicense"
         ));
@@ -2472,6 +2564,7 @@ mod tests {
         let output = super::create_component(
             &test_dir.join("toplevel"),
             String::from("remote"),
+            String::from("Remote"),
             String::from("TestSourceLicense"),
             String::from("TestDocLicense"),
         );
@@ -2480,6 +2573,7 @@ mod tests {
         assert!(is_valid_component(
             &test_dir.join("toplevel").join("components").join("remote"),
             "remote",
+            "Remote",
             "TestSourceLicense",
             "TestDocLicense"
         ));
@@ -2513,6 +2607,7 @@ mod tests {
                 .join("node_modules")
                 .join("remote"),
             "remote",
+            "Remote",
             "TestSourceLicense",
             "TestDocLicense"
         ));
@@ -2570,6 +2665,7 @@ mod tests {
         let output = super::create_component(
             &test_dir,
             String::from("nextlevel"),
+            String::from("Next Level"),
             String::from("TestSourceLicense"),
             String::from("TestDocLicense"),
         );
@@ -2615,6 +2711,7 @@ mod tests {
         assert!(is_valid_component(
             &test_dir.join("toplevel").join("nextlevel"),
             "nextlevel",
+            "Next Level",
             "TestSourceLicense",
             "TestDocLicense"
         ));
@@ -2744,18 +2841,33 @@ mod tests {
     fn test_munge_component_description() {
         // Check with a pretty standard description
         let munged = super::munge_component_description(&String::from("Adhesive Tape"));
-
-        assert_eq!(munged, "adhesive_tape");
+        assert_eq!(munged, "adhesive-tape");
 
         // Check with a leading numeric character
         let munged = super::munge_component_description(&String::from("1 Adhesive Tape"));
-
-        assert_eq!(munged, "_1_adhesive_tape");
+        assert_eq!(munged, "_1-adhesive-tape");
 
         // Check with a dot
         let munged = super::munge_component_description(&String::from("Adhesive.Tape"));
+        assert_eq!(munged, "adhesive-tape");
 
-        assert_eq!(munged, "adhesive_tape");
+        // Test with a trailing space
+        let munged = super::munge_component_description(&String::from("Adhesive Tape "));
+        assert_eq!(munged, "adhesive-tape");
+
+        // Test with a single part name
+        let munged = super::munge_component_description(&String::from("Local"));
+        assert_eq!(munged, "local");
+
+        // Test with a filename over the 255 character limit
+        let mut string = String::new();
+        for _ in 0..256 {
+            string.push_str("x");
+        }
+
+        let munged = super::munge_component_description(&string);
+        println!("{}", munged.len());
+        assert_eq!(munged, string[..255]);
     }
 
     // Cleans up the git daemon processes after tests run
@@ -2817,6 +2929,7 @@ mod tests {
     fn is_valid_component(
         component_path: &Path,
         component_name: &str,
+        component_desc: &str,
         source_license: &str,
         doc_license: &str,
     ) -> bool {
@@ -2917,7 +3030,11 @@ mod tests {
             is_valid = false;
             println!("The README.md file in {:?} does not contain the the correct header entry in the right place.", component_path);
         }
-        if !file_contains_content(&readme_file, 1, "New Sliderule component.") {
+        if !file_contains_content(
+            &readme_file,
+            1,
+            &format!("{} - Sliderule component.", component_desc),
+        ) {
             is_valid = false;
             println!("The README.md file in {:?} does not contain the the correct Sliderule mention in the right place.", component_path);
         }
