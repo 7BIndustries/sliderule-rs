@@ -88,7 +88,7 @@ pub fn readme_template() -> String {
 
     let mut contents = String::from("# {{name}}");
     contents.push_str(nl);
-    contents.push_str("New Sliderule component.");
+    contents.push_str("{{description}} - Sliderule component.");
     contents.push_str(nl);
     contents.push_str(nl);
     contents.push_str("---");
