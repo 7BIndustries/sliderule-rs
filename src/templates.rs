@@ -114,7 +114,7 @@ pub fn sr_file_template() -> String {
 }
 
 /*
- * Returns the Liquid template text for a part item entry in parts.yaml or tools.yaml
+ * Returns the Liquid template text for an item entry in parts.yaml or tools.yaml
  */
 pub fn item_template() -> String {
     let nl = &get_newline();
@@ -136,6 +136,19 @@ pub fn item_template() -> String {
     contents.push_str("  selectedOption: {{component_name}}");
     contents.push_str(nl);
     contents.push_str("  notes: {{item_notes}}");
+    contents.push_str(nl);
+
+    return contents;
+}
+
+/*
+ * Returns the Liquid template text for an option entry in parts.yaml or tools.yaml
+ */
+pub fn item_option_template() -> String {
+    let nl = &get_newline();
+
+    let mut contents = String::from("  - {{component_name}}");
+    contents.push_str(nl);
 
     return contents;
 }

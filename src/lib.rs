@@ -39,6 +39,7 @@ extern crate walkdir;
 use regex::Regex;
 use std::cmp::Ordering;
 use std::fs;
+use std::fs::OpenOptions;
 use std::io::prelude::*;
 use std::path::{Path, PathBuf};
 
@@ -1224,36 +1225,145 @@ pub fn insert_item(
         stdout: Vec::new(),
     };
 
-    // Add the things that need to be put substituted into the README file
-    let mut globals = liquid::value::Object::new();
-    globals.insert(
-        "item_name".into(),
-        liquid::value::Value::scalar(item_name.to_owned()),
-    );
-    globals.insert(
-        "item_description".into(),
-        liquid::value::Value::scalar(item_description.to_owned()),
-    );
-    globals.insert(
-        "item_qty".into(),
-        liquid::value::Value::scalar(item_qty.to_owned()),
-    );
-    globals.insert(
-        "quantity_units".into(),
-        liquid::value::Value::scalar(quantity_units.to_owned()),
-    );
-    globals.insert(
-        "item_notes".into(),
-        liquid::value::Value::scalar(item_notes.to_owned()),
-    );
-    globals.insert(
-        "component_name".into(),
-        liquid::value::Value::scalar(component_name.to_owned()),
-    );
+    let list_file = if list_name == "parts" {
+        "parts.yaml"
+    } else {
+        "tools.yaml"
+    };
 
-    let contents = render_template("item.liquid", &mut globals);
+    // Figure out if the item already exists in the list
+    if file_contains_content(
+        &target_dir.join(list_file),
+        9999,
+        &format!("{}:", item_name),
+    ) {
+        // Read the file so that we can insert the new component as an option
+        let contents = match fs::read_to_string(&target_dir.join("parts.yaml")) {
+            Ok(contents) => contents,
+            Err(e) => {
+                output.status = 23;
+                output
+                    .stderr
+                    .push(format!("Could not open {} file: {}", list_file, e));
+                return output;
+            }
+        };
 
-    // println!("{}", contents);
+        let nl = get_newline();
+        let lines = contents.split(&nl);
+
+        let mut new_content = String::new();
+        let mut found_item = false; // Whether or not we have found the item in the list file
+        let mut found_options = false; // Whether or not we have found the options section
+        let mut finding_option = false; // Whether or not we are still finding individual options
+
+        // Loop through all the lines in the file, looking for the item name so that we can insert the component
+        for line in lines {
+            // If we have found the item, we need to keep track so we can insert the new component as an option when the time comes
+            if line == format!("{}:", item_name) {
+                found_item = true;
+            }
+
+            // If we have already seen the item and are now looking at an option line, insert the component as an option
+            if found_item == true && line == "  options:" {
+                found_options = true;
+            }
+
+            let re = Regex::new(r"^ {2}-.*").unwrap();
+
+            // We need to know when we're at the end of the options so we can insert the current option
+            if found_options == true && re.is_match(line) {
+                finding_option = true;
+            }
+
+            // If we were finding options and aren't now, we need to insert our new component as an option
+            if found_options == true && finding_option == true && !re.is_match(line) {
+                // Render the template and make sure we got was expected
+                let mut globals = liquid::value::Object::new();
+                globals.insert(
+                    "component_name".into(),
+                    liquid::value::Value::scalar(&component_name),
+                );
+
+                let render = render_template("option.liquid", &mut globals);
+
+                new_content.push_str(&render);
+
+                // Make sure that we don't end up back in here again
+                finding_option = false;
+            }
+
+            // Rebuild the files contents one line at a time
+            new_content.push_str(line);
+            new_content.push_str(&nl);
+        }
+
+        // Write the file contents, with the option added, back to the list file
+        match fs::write(target_dir.join(list_file), new_content) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 23;
+                output.stderr.push(format!(
+                    "Could not write additional option to item in list file: {}",
+                    e
+                ));
+            }
+        };
+    } else {
+        // Add the things that need to be put substituted into the README file
+        let mut globals = liquid::value::Object::new();
+        globals.insert(
+            "item_name".into(),
+            liquid::value::Value::scalar(item_name.to_owned()),
+        );
+        globals.insert(
+            "item_description".into(),
+            liquid::value::Value::scalar(item_description.to_owned()),
+        );
+        globals.insert(
+            "item_qty".into(),
+            liquid::value::Value::scalar(item_qty.to_owned()),
+        );
+        globals.insert(
+            "quantity_units".into(),
+            liquid::value::Value::scalar(quantity_units.to_owned()),
+        );
+        globals.insert(
+            "item_notes".into(),
+            liquid::value::Value::scalar(item_notes.to_owned()),
+        );
+        globals.insert(
+            "component_name".into(),
+            liquid::value::Value::scalar(component_name.to_owned()),
+        );
+
+        let contents = render_template("item.liquid", &mut globals);
+
+        // Append the entry to the parts.yaml file
+        let mut file = match OpenOptions::new()
+            .append(true)
+            .open(&target_dir.join(list_file))
+        {
+            Ok(file) => file,
+            Err(e) => {
+                output.status = 23;
+                output
+                    .stderr
+                    .push(format!("Could not open {} file: {}", list_file, e));
+                return output;
+            }
+        };
+        match file.write_all(contents.as_bytes()) {
+            Ok(_) => (),
+            Err(e) => {
+                output.status = 24;
+                output
+                    .stderr
+                    .push(format!("Could not write to file {}: {}", list_file, e));
+                return output;
+            }
+        };
+    }
 
     return output;
 }
@@ -1568,6 +1678,8 @@ fn render_template(template_name: &str, globals: &mut liquid::value::Object) -> 
         contents = templates::readme_template();
     } else if template_name == "item.liquid" {
         contents = templates::item_template();
+    } else if template_name == "option.liquid" {
+        contents = templates::item_option_template();
     }
 
     // Render the output of the template using Liquid
@@ -1916,6 +2028,30 @@ fn combine_sroutputs(mut dest: SROutput, src: SROutput) -> SROutput {
     }
 
     dest
+}
+
+/*
+ * Helper function that checks to make sure that given text is present in the files.
+ */
+fn file_contains_content(file_path: &Path, line: usize, text: &str) -> bool {
+    let contains_content: bool;
+
+    // Read the contents of the file
+    let contents =
+        fs::read_to_string(file_path).expect("ERROR: Cannot read the contents of the file.");
+
+    // See if the user just wants to make sure the content is somewhere in the file
+    if line == 9999 {
+        contains_content = contents.contains(text);
+    } else {
+        // Break the file down into something we can index
+        let contents: Vec<&str> = contents.lines().collect();
+
+        // See if the line we are interested in is exactly the content specified
+        contains_content = contents[line].trim() == text;
+    }
+
+    contains_content
 }
 
 pub mod git_sr;
@@ -2513,6 +2649,148 @@ mod tests {
             "TestSourceLicense",
             "TestDocLicense"
         ));
+    }
+
+    #[test]
+    fn test_insert_item() {
+        let temp_dir = env::temp_dir();
+
+        // Set up our temporary project directory for testing
+        let test_dir = set_up(&temp_dir, "toplevel");
+
+        // Test creating the entire item entry in the parts.yaml file
+        let output = super::insert_item(
+            &test_dir.join("toplevel"),
+            "parts".to_string(),
+            "test-item".to_string(),
+            "Test Item".to_string(),
+            "1".to_string(),
+            "part".to_string(),
+            "''".to_string(),
+            "test-component".to_string(),
+        );
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        // Add the things that need to be put substituted into the README file
+        let mut globals = liquid::value::Object::new();
+        globals.insert(
+            "item_name".into(),
+            liquid::value::Value::scalar("test-item"),
+        );
+        globals.insert(
+            "item_description".into(),
+            liquid::value::Value::scalar("Test Item"),
+        );
+        globals.insert("item_qty".into(), liquid::value::Value::scalar("1"));
+        globals.insert(
+            "quantity_units".into(),
+            liquid::value::Value::scalar("part"),
+        );
+        globals.insert("item_notes".into(), liquid::value::Value::scalar("''"));
+        globals.insert(
+            "component_name".into(),
+            liquid::value::Value::scalar("test-component"),
+        );
+
+        let rendered_template = super::render_template("item.liquid", &mut globals);
+
+        let file_contents = fs::read_to_string(&test_dir.join("toplevel").join("parts.yaml"))
+            .expect("ERROR: Cannot read the contents of the file.");
+
+        assert_eq!(rendered_template, file_contents);
+
+        // Test creating the entire item entry in the tools.yaml file
+        let output = super::insert_item(
+            &test_dir.join("toplevel"),
+            "tools".to_string(),
+            "test-item".to_string(),
+            "Test Item".to_string(),
+            "1".to_string(),
+            "part".to_string(),
+            "''".to_string(),
+            "test-component".to_string(),
+        );
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        // Add the things that need to be put substituted into the README file
+        let mut globals = liquid::value::Object::new();
+        globals.insert(
+            "item_name".into(),
+            liquid::value::Value::scalar("test-item"),
+        );
+        globals.insert(
+            "item_description".into(),
+            liquid::value::Value::scalar("Test Item"),
+        );
+        globals.insert("item_qty".into(), liquid::value::Value::scalar("1"));
+        globals.insert(
+            "quantity_units".into(),
+            liquid::value::Value::scalar("part"),
+        );
+        globals.insert("item_notes".into(), liquid::value::Value::scalar("''"));
+        globals.insert(
+            "component_name".into(),
+            liquid::value::Value::scalar("test-component"),
+        );
+
+        let rendered_template = super::render_template("item.liquid", &mut globals);
+
+        let file_contents = fs::read_to_string(&test_dir.join("toplevel").join("tools.yaml"))
+            .expect("ERROR: Cannot read the contents of the file.");
+
+        assert_eq!(rendered_template, file_contents);
+
+        // Test inserting an option for a parts item
+        let output = super::insert_item(
+            &test_dir.join("toplevel"),
+            "parts".to_string(),
+            "test-item".to_string(),
+            "Test Item".to_string(),
+            "1".to_string(),
+            "part".to_string(),
+            "''".to_string(),
+            "option-component".to_string(),
+        );
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        let file_contents = fs::read_to_string(&test_dir.join("toplevel").join("parts.yaml"))
+            .expect("ERROR: Cannot read the contents of the file.");
+
+        let lines = file_contents
+            .split(&super::get_newline())
+            .collect::<Vec<&str>>();
+
+        assert_eq!("  - option-component", lines[7]);
+
+        // Test inserting an option for a tools item
+        let output = super::insert_item(
+            &test_dir.join("toplevel"),
+            "tools".to_string(),
+            "test-item".to_string(),
+            "Test Item".to_string(),
+            "1".to_string(),
+            "part".to_string(),
+            "''".to_string(),
+            "option-component".to_string(),
+        );
+
+        // We should not have gotten an error
+        assert_eq!(0, output.status);
+
+        let file_contents = fs::read_to_string(&test_dir.join("toplevel").join("tools.yaml"))
+            .expect("ERROR: Cannot read the contents of the file.");
+
+        let lines = file_contents
+            .split(&super::get_newline())
+            .collect::<Vec<&str>>();
+
+        assert_eq!("  - option-component", lines[7]);
     }
 
     #[test]
